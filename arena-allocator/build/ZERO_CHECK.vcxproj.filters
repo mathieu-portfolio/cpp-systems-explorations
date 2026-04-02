@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\Users\Mathieu\Developpement\Cpp\cpp-systems-explorations\arena-allocator\build\CMakeFiles\9d9f34e93a02ff6758e96cb56cd1cae9\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{54970801-6217-362E-AA8E-93AD6202542F}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -30,10 +30,12 @@ A minimal linear (bump) allocator providing fast, contiguous memory allocation o
 
 - `Marker mark()`
   - returns a marker representing the current allocation state
+  - markers are bound to the originating arena
 
 - `void rewind(Marker marker)`
   - restores allocation state to a previously saved marker
   - storage allocated after the marker may be reused
+  - requires the marker to originate from the same arena
 
 ---
 
@@ -54,7 +56,7 @@ A minimal linear (bump) allocator providing fast, contiguous memory allocation o
 - The allocator does not support over-aligned types
 - Memory returned is raw storage; object lifetime must be explicitly managed by the caller
 - `reset()` and `rewind()` do not call destructors; any live objects must be destroyed before reuse
-- Markers must originate from the same arena; using foreign or forged markers is invalid
+- Markers are only valid for the arena that created them and while that arena is alive
 - Not thread-safe
 
 ---

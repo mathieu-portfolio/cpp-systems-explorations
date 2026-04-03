@@ -66,13 +66,14 @@ void Arena::reset()
 
 Arena::Marker Arena::mark() const
 {
-  return Marker{offset};
+  return Marker(offset, this);
 }
 
 void Arena::rewind(Arena::Marker marker)
 {
-  // enforce invariant
+  // enforce invariants
   assert(marker.offset <= offset);
+  assert(marker.owner == this);
 
   offset = marker.offset;
 }

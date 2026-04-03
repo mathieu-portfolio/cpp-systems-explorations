@@ -9,8 +9,15 @@ private:
   size_t offset;
 
 public:
-  struct Marker {
+  class Marker {
+  private:
     size_t offset;
+    const Arena* owner;
+
+    Marker(size_t offset, const Arena* owner)
+      : offset(offset), owner(owner) { }
+
+    friend class Arena;
   };
 
   explicit Arena(size_t capacity, size_t max_alignment);

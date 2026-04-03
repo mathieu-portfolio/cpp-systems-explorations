@@ -37,6 +37,18 @@ A minimal linear (bump) allocator providing fast, contiguous memory allocation o
   - storage allocated after the marker may be reused
   - requires the marker to originate from the same arena
 
+- `size_t capacity()`
+  - total size of the arena in bytes
+
+- `size_t used()`
+  - number of bytes currently reserved (including alignment padding)
+
+- `size_t remaining()`
+  - number of bytes available for future allocations
+
+- `size_t max_alignment()`
+  - maximum supported alignment for allocations
+
 ---
 
 ## Contract

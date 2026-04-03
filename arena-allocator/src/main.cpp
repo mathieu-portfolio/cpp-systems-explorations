@@ -170,6 +170,26 @@ void rewind_preserves_storage_before_marker_test()
   log_pass(__func__);
 }
 
+void usage_tracking_test()
+{
+  Arena arena(32, 8);
+
+  CHECK(arena.used() == 0);
+  CHECK(arena.remaining() == 32);
+
+  arena.allocate(1, 1);
+
+  CHECK(arena.used() == 1);
+  CHECK(arena.remaining() == 31);
+
+  arena.allocate(8, 8);
+
+  CHECK(arena.used() == 16); // padding included
+  CHECK(arena.remaining() == 16);
+
+  log_pass(__func__);
+}
+
 int main()
 {
   basic_allocation_test();
@@ -179,4 +199,5 @@ int main()
   rewind_reuses_storage_test();
   nested_markers_test();
   rewind_preserves_storage_before_marker_test();
+  usage_tracking_test();
 }

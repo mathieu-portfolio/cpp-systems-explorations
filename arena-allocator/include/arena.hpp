@@ -3,19 +3,19 @@
 
 class Arena {
 private:
-  char* buffer;
-  size_t capacity;
-  size_t max_alignment;
-  size_t offset;
+  char* _buffer;
+  size_t _capacity;
+  size_t _max_alignment;
+  size_t _offset;
 
 public:
   class Marker {
   private:
-    size_t offset;
-    const Arena* owner;
+    size_t _offset;
+    const Arena* _owner;
 
     Marker(size_t offset, const Arena* owner)
-      : offset(offset), owner(owner) { }
+      : _offset(offset), _owner(owner) { }
 
     friend class Arena;
   };
@@ -32,6 +32,11 @@ public:
   void reset();
   Marker mark() const;
   void rewind(Marker marker);
+
+  size_t capacity() const noexcept { return _capacity; }
+  size_t max_alignment() const noexcept { return _max_alignment; }
+  size_t used() const noexcept { return _offset; }
+  size_t remaining() const noexcept { return _capacity - _offset; }
 
   // Returns raw storage for T, does not construct objects
   template<typename T>

@@ -35,7 +35,7 @@ bool is_aligned(void* ptr, size_t alignment)
 
 void basic_allocation_test()
 {
-  Arena arena(32);
+  Arena arena(32, 8);
 
   void* p1 = arena.allocate(8, 4);
   CHECK(p1 != nullptr);
@@ -48,7 +48,7 @@ void basic_allocation_test()
 
 void alignment_test()
 {
-  Arena arena(32);
+  Arena arena(32, 8);
 
   void* p1 = arena.allocate(8, 4);
   CHECK(p1 != nullptr);
@@ -69,7 +69,7 @@ void alignment_test()
 
 void exhaustion_test()
 {
-  Arena arena(16);
+  Arena arena(16, 8);
 
   void* p1 = arena.allocate(8, 4);
   CHECK(p1 != nullptr);
@@ -85,7 +85,7 @@ void exhaustion_test()
 
 void reset_test()
 {
-  Arena arena(16);
+  Arena arena(16, 8);
 
   void* first = arena.allocate(8, 4);
   CHECK(first != nullptr);

@@ -1,5 +1,7 @@
 # Arena Allocator
 
+**Version: V1 – fixed-capacity aligned bump allocator**
+
 ## Overview
 
 A minimal linear (bump) allocator providing fast, contiguous memory allocation over a fixed-size buffer.
@@ -14,16 +16,16 @@ A minimal linear (bump) allocator providing fast, contiguous memory allocation o
 ## API
 
 - `void* allocate(size, alignment)`
-  - `alignment` must be a power of two
-  - returns `nullptr` on failure (invalid alignment or insufficient space)
+  - `alignment` must be a power of two and ≤ `max_alignment`
+  - returns `nullptr` on failure (insufficient space or size == 0)
 
-- `T* allocate<T>(count)`
-  - allocates raw, uninitialized storage for `T`
-  - does not construct objects (caller must use placement new if needed)
+- `void* allocate<T>(count)`
+  - allocates raw, uninitialized storage sufficient for `count` objects of type `T`
+  - does not construct objects
 
 - `void reset()`
   - resets allocation offset to zero
-  - invalidates all previously returned pointers
+  - allows previously returned storage to be reused
 
 ---
 
@@ -32,17 +34,17 @@ A minimal linear (bump) allocator providing fast, contiguous memory allocation o
 - Allocation is O(1)
 - On success, returns a pointer to contiguous storage of the requested size
 - Returns `nullptr` if allocation cannot be satisfied
-- Returned pointers satisfy the requested alignment, provided the alignment is supported by the underlying storage
+- Returned pointers satisfy the requested alignment when `alignment ≤ max_alignment`
 - Does not perform object construction or destruction
 
 ---
 
 ## Constraints & Assumptions
 
-- Alignment must be a power of two
-- The allocator does not guarantee support for over-aligned types (alignment greater than that of the backing buffer)
+- Alignment must be a power of two and ≤ `max_alignment`
+- The allocator does not support over-aligned types
 - Memory returned is raw storage; object lifetime must be explicitly managed by the caller
-- `reset()` does not call destructors; any live objects must be destroyed before reset
+- `reset()` does not call destructors; any live objects must be destroyed before reuse
 - Not thread-safe
 
 ---

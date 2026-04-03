@@ -1,15 +1,22 @@
 #include "arena.hpp"
 #include <cstdint>
+#include <new>
+#include <cassert>
 
-Arena::Arena(size_t capacity)
-  : capacity(capacity), offset(0)
+Arena::Arena(size_t capacity, size_t max_alignment)
+  : capacity(capacity), max_alignment(max_alignment), offset(0)
 {
-  buffer = new char[capacity];
+  // enforce invariant: power-of-two and non-zero
+  assert(max_alignment != 0 && is_power_of_two(max_alignment));
+  
+  buffer = static_cast<char*>(
+    ::operator new(capacity, std::align_val_t{max_alignment})
+  );
 }
 
 Arena::~Arena()
 {
-  delete[] buffer;
+  ::operator delete(buffer, std::align_val_t{max_alignment});
 }
 
 static bool is_power_of_two(size_t x)
@@ -19,14 +26,11 @@ static bool is_power_of_two(size_t x)
 
 void* Arena::allocate(size_t size, size_t alignment)
 {
-  if (size == 0)
-  {
-    return nullptr;
-  }
+  assert(alignment != 0);
+  assert(is_power_of_two(alignment));
+  assert(alignment <= max_alignment);
 
-  // Only power-of-two alignments are supported
-  if (!is_power_of_two(alignment))
-  {
+  if (size == 0){
     return nullptr;
   }
 

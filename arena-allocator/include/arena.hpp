@@ -5,10 +5,11 @@ class Arena {
 private:
   char* buffer;
   size_t capacity;
+  size_t max_alignment;
   size_t offset;
 
 public:
-  explicit Arena(size_t capacity);
+  explicit Arena(size_t capacity, size_t max_alignment);
   ~Arena();
 
   Arena(const Arena&) = delete;
@@ -21,7 +22,7 @@ public:
 
   // Returns raw storage for T, does not construct objects
   template<typename T>
-  T* allocate(size_t count = 1)
+  void* allocate(size_t count = 1)
   {
     if (count == 0)
     {
@@ -38,8 +39,6 @@ public:
     size_t alignment = alignof(T);
 
     void* ptr = allocate(size, alignment);
-    T* typed_ptr = reinterpret_cast<T*>(ptr);
-
-    return typed_ptr;
+    return ptr;
   }
 };

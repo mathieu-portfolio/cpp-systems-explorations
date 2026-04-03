@@ -100,10 +100,85 @@ void reset_test()
   log_pass(__func__);
 }
 
+void rewind_reuses_storage_test()
+{
+  Arena arena(32, 8);
+
+  Arena::Marker marker = arena.mark();
+
+  void* first = arena.allocate(8, 4);
+  CHECK(first != nullptr);
+
+  arena.rewind(marker);
+
+  void* second = arena.allocate(8, 4);
+  CHECK(second != nullptr);
+
+  CHECK(first == second);
+
+  log_pass(__func__);
+}
+
+void nested_markers_test()
+{
+  Arena arena(64, 8);
+
+  Arena::Marker m1 = arena.mark();
+
+  void* p1 = arena.allocate(8, 4);
+  CHECK(p1 != nullptr);
+
+  Arena::Marker m2 = arena.mark();
+
+  void* p2 = arena.allocate(8, 4);
+  CHECK(p2 != nullptr);
+
+  arena.rewind(m2);
+
+  void* p3 = arena.allocate(8, 4);
+  CHECK(p3 != nullptr);
+
+  CHECK(p2 == p3);
+
+  arena.rewind(m1);
+
+  void* p4 = arena.allocate(8, 4);
+  CHECK(p4 != nullptr);
+
+  CHECK(p1 == p4);
+
+  log_pass(__func__);
+}
+
+void rewind_preserves_storage_before_marker_test()
+{
+  Arena arena(64, 8);
+
+  void* before = arena.allocate(8, 4);
+  CHECK(before != nullptr);
+
+  Arena::Marker marker = arena.mark();
+
+  void* after = arena.allocate(8, 4);
+  CHECK(after != nullptr);
+
+  arena.rewind(marker);
+
+  void* reused = arena.allocate(8, 4);
+  CHECK(reused != nullptr);
+
+  CHECK(after == reused);
+  CHECK(before != reused);
+
+  log_pass(__func__);
+}
 int main()
 {
   basic_allocation_test();
   alignment_test();
   exhaustion_test();
   reset_test();
+  rewind_reuses_storage_test();
+  nested_markers_test();
+  rewind_preserves_storage_before_marker_test();
 }

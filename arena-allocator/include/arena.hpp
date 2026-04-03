@@ -9,6 +9,10 @@ private:
   size_t offset;
 
 public:
+  struct Marker {
+    size_t offset;
+  };
+
   explicit Arena(size_t capacity, size_t max_alignment);
   ~Arena();
 
@@ -19,6 +23,8 @@ public:
 
   void* allocate(size_t size, size_t alignment);
   void reset();
+  Marker mark() const;
+  void rewind(Marker marker);
 
   // Returns raw storage for T, does not construct objects
   template<typename T>

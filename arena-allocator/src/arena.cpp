@@ -26,6 +26,7 @@ static bool is_power_of_two(size_t x)
 
 void* Arena::allocate(size_t size, size_t alignment)
 {
+  // enforce invariants
   assert(alignment != 0);
   assert(is_power_of_two(alignment));
   assert(alignment <= max_alignment);
@@ -61,4 +62,17 @@ void* Arena::allocate(size_t size, size_t alignment)
 void Arena::reset()
 {
   offset = 0;
+}
+
+Arena::Marker Arena::mark() const
+{
+  return Marker{offset};
+}
+
+void Arena::rewind(Arena::Marker marker)
+{
+  // enforce invariant
+  assert(marker.offset <= offset);
+
+  offset = marker.offset;
 }

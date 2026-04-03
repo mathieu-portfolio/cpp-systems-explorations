@@ -1,15 +1,16 @@
 # Arena Allocator
 
-**Version: V1 – fixed-capacity aligned bump allocator**
+**Version: V2 – marker-based rollback support**
 
 ## Overview
 
-A minimal linear (bump) allocator providing fast, contiguous memory allocation over a fixed-size buffer.
+A minimal linear (bump) allocator providing fast, contiguous memory allocation over a fixed-size buffer, with checkpoint/rollback support.
 
 - Single contiguous buffer
 - Monotonic offset (no per-allocation free)
 - Constant-time allocation
 - Reset in O(1)
+- Marker-based rollback for temporary allocations
 
 ---
 
@@ -27,6 +28,13 @@ A minimal linear (bump) allocator providing fast, contiguous memory allocation o
   - resets allocation offset to zero
   - allows previously returned storage to be reused
 
+- `Marker mark()`
+  - returns a marker representing the current allocation state
+
+- `void rewind(Marker marker)`
+  - restores allocation state to a previously saved marker
+  - storage allocated after the marker may be reused
+
 ---
 
 ## Contract
@@ -35,6 +43,7 @@ A minimal linear (bump) allocator providing fast, contiguous memory allocation o
 - On success, returns a pointer to contiguous storage of the requested size
 - Returns `nullptr` if allocation cannot be satisfied
 - Returned pointers satisfy the requested alignment when `alignment ≤ max_alignment`
+- `mark()` and `rewind()` allow efficient rollback of recent allocations
 - Does not perform object construction or destruction
 
 ---
@@ -44,7 +53,8 @@ A minimal linear (bump) allocator providing fast, contiguous memory allocation o
 - Alignment must be a power of two and ≤ `max_alignment`
 - The allocator does not support over-aligned types
 - Memory returned is raw storage; object lifetime must be explicitly managed by the caller
-- `reset()` does not call destructors; any live objects must be destroyed before reuse
+- `reset()` and `rewind()` do not call destructors; any live objects must be destroyed before reuse
+- Markers must originate from the same arena; using foreign or forged markers is invalid
 - Not thread-safe
 
 ---
@@ -54,4 +64,6 @@ A minimal linear (bump) allocator providing fast, contiguous memory allocation o
 - Basic allocation success and failure cases
 - Alignment correctness across varying alignment requests
 - Exhaustion handling
-- Reset behavior (offset reuse)
+- Reset behavior (full reuse)
+- Marker and rewind behavior (partial rollback)
+- Nested marker correctness

@@ -3,6 +3,11 @@
 #include <new>
 #include <cassert>
 
+static bool is_power_of_two(size_t x)
+{
+  return x != 0 && (x & (x - 1)) == 0;
+}
+
 Arena::Arena(size_t capacity, size_t max_alignment)
   : capacity(capacity), max_alignment(max_alignment), offset(0)
 {
@@ -17,11 +22,6 @@ Arena::Arena(size_t capacity, size_t max_alignment)
 Arena::~Arena()
 {
   ::operator delete(buffer, std::align_val_t{max_alignment});
-}
-
-static bool is_power_of_two(size_t x)
-{
-  return x != 0 && (x & (x - 1)) == 0;
 }
 
 void* Arena::allocate(size_t size, size_t alignment)

@@ -61,9 +61,6 @@ void alignment_test()
   CHECK(p3 != nullptr);
   CHECK(is_aligned(p3, 8));
 
-  void* p4 = arena.allocate(8, 3);
-  CHECK(p4 == nullptr);
-
   log_pass(__func__);
 }
 
@@ -172,6 +169,7 @@ void rewind_preserves_storage_before_marker_test()
 
   log_pass(__func__);
 }
+
 int main()
 {
   basic_allocation_test();

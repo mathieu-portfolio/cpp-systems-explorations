@@ -31,7 +31,13 @@ void* Arena::allocate(size_t size, size_t alignment)
   assert(is_power_of_two(alignment));
   assert(alignment <= _max_alignment);
 
-  if (size == 0){
+  if (size == 0)
+  {
+    return nullptr;
+  }
+
+  if (_offset >= _capacity)
+  {
     return nullptr;
   }
 

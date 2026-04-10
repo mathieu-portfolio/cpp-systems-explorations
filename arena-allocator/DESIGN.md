@@ -1,46 +1,215 @@
 # Design Notes
 
+---
+
 ## Purpose & Context
 
 This project is a learning-focused implementation of arena-style allocators in C++.
 
 The goal is to strengthen fundamentals in:
+
 - memory layout and alignment
 - pointer arithmetic and overflow safety
 - ownership and object lifetime separation
 - API contracts and invariants
 - performance-oriented low-level design
 
-The project is not meant to become a general-purpose allocator replacement. Its purpose is to explore a small set of allocator designs deeply and clearly.
+The project is not intended to become a general-purpose allocator.  
+It is designed to explore allocator behavior in a controlled and understandable way.
+
+---
+
+## Core Model
+
+The allocator is based on a linear (bump) allocation model:
+
+```text
+[AAAA][BBBB][CCCC][.............]
+                     ^
+                  offset
+```
+
+- allocations are placed sequentially in a contiguous buffer
+- the offset always moves forward
+- no individual deallocation exists
+
+Allocation is implemented as:
+
+1. compute aligned address from current offset
+2. return pointer
+3. advance offset
+
+---
+
+## Alignment Strategy
+
+The arena buffer is allocated with a fixed maximum alignment:
+
+- all allocations must satisfy: `alignment <= max_alignment`
+- alignment is enforced via padding
+
+```text
+Before alignment:
+
+[AAAA][BBBB][x][........]
+             ^
+          misaligned
+
+After padding:
+
+[AAAA][BBBB][pad][CCCC][....]
+                   ^
+                aligned
+```
+
+This lets the allocator satisfy supported alignments without requiring per-allocation system calls.
+
+---
+
+## Marker / Rewind Model
+
+Markers allow restoring a previous allocation state:
+
+```text
+mark()
+
+[AAAA][BBBB][.............]
+               ^
+            marker
+
+allocate more:
+
+[AAAA][BBBB][CCCC][DDDD][..]
+                         ^
+                      offset
+
+rewind(marker):
+
+[AAAA][BBBB][.............]
+               ^
+            offset restored
+```
+
+Properties:
+
+- `mark()` captures the current offset
+- `rewind()` restores the offset
+- memory is not cleared, only made reusable
+- no destructors are called
+
+---
+
+## Invariants
+
+The allocator relies on the following invariants:
+
+- `0 <= offset <= capacity`
+- all returned pointers lie within `[buffer, buffer + capacity)`
+- offset only moves forward, except through `rewind()` or `reset()`
+- alignment padding does not exceed remaining capacity
+
+Correctness of allocation depends on maintaining these invariants.
+
+---
+
+## Error Model
+
+The allocator distinguishes between:
+
+### Runtime failure
+
+- insufficient capacity -> returns `nullptr`
+
+### Programmer error
+
+- invalid alignment
+- alignment greater than `max_alignment`
+- invalid marker usage
+
+These are:
+
+- enforced with `assert` in debug builds
+- considered invalid usage in release builds
+
+This keeps the allocator minimal and fast.
+
+---
+
+## Lifetime Model
+
+The arena provides raw storage only:
+
+- it does not construct objects
+- it does not destroy objects
+
+This keeps allocation separate from object lifetime management.
+
+Important implication:
+
+> `rewind()` and `reset()` invalidate storage without calling destructors.
+
+---
+
+## Design Trade-offs
+
+### Advantages
+
+- O(1) allocation
+- O(1) reset / rewind
+- no fragmentation
+- good cache locality
+- simple mental model
+
+### Limitations
+
+- no individual deallocation
+- requires grouped lifetimes
+- not thread-safe
+- not suitable for automatic destruction of non-trivial objects
 
 ---
 
 ## Current Design Direction
 
-The current implementation focuses on a simple linear allocator with:
+The implementation intentionally favors:
 
-- a fixed-size contiguous buffer
-- aligned bump allocation
-- constant-time reset
-- marker-based rollback for temporary allocations
-- raw storage only
-- debug-enforced preconditions
+- simplicity over generality
+- explicit contracts over defensive runtime checks
+- raw memory control over abstraction
 
-The design intentionally favors clarity, explicit contracts, and predictable behavior over feature richness.
+It is designed as a scratch allocator for:
+
+- request-scoped memory
+- temporary computation buffers
+- short-lived working data
 
 ---
 
 ## Target Feature Set
 
-The broader goal of the project is to explore a small allocator family around arena-based allocation, potentially including:
+Possible extensions include:
 
-- aligned linear allocation
-- marker / rewind semantics
-- scoped temporary allocation helpers
+- scoped allocation helpers (RAII-based rewind)
 - support for externally provided buffers
-- limited typed allocation helpers
-- clear documentation of invariants, constraints, and trade-offs
+- limited typed construction helpers
 
-Features should only be added when they deepen understanding of memory, lifetime, ownership, or allocator design.
+New features should only be added when they deepen understanding of memory behavior, lifetime management, or allocator trade-offs.
 
-The project should remain small enough that its core model stays easy to explain and reason about.
+---
+
+## Non-Goals
+
+To preserve clarity, the project intentionally avoids:
+
+- general-purpose allocator replacement
+- automatic destructor tracking
+- thread safety mechanisms
+- advanced allocation strategies such as pool or freelist allocators
+
+---
+
+## Design Philosophy
+
+> A simple model that is easy to reason about is more valuable than a feature-rich one.
+
+The goal is not to hide complexity, but to expose it clearly.

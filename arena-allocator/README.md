@@ -1,6 +1,6 @@
 # Arena Allocator
 
-**Version: V2 – marker-based rollback support**
+**Version: V3 – scoped rewind guard**
 
 ---
 
@@ -34,7 +34,7 @@ Instead of managing each allocation individually:
 
 - allocate memory linearly from a buffer
 - do not free individual allocations
-- reclaim memory all at once with `reset()` or `rewind()`
+- reclaim memory all at once with `reset()`, `rewind()`, or a scoped rewind guard
 
 > **Allocate many things, free them all at once.**
 
@@ -79,7 +79,7 @@ Allocate 6 bytes:
                   offset moved forward
 ```
 
-### Mark / Rewind (V2 feature)
+### Mark / Rewind
 
 ```text
 mark()
@@ -103,6 +103,32 @@ rewind(marker):
 
 - everything after the marker is reclaimed instantly
 - no per-allocation free is required
+
+### Scoped rewind guard (V3 feature)
+
+A scoped rewind guard captures a marker on construction and automatically
+rewinds the arena when the guard goes out of scope.
+
+This is useful for temporary allocations inside a block or function, especially
+when there are early returns.
+
+```text
+Before scope exit:
+
+[AAAA][BBBB][CCCC][DDDD][.....]
+                         ^
+                      offset
+
+After guard destruction:
+
+[AAAA][BBBB][.................]
+               ^
+            offset restored
+```
+
+- cleanup is automatic on scope exit
+- `dismiss()` disables the automatic rewind
+- nested scoped rewinds are supported
 
 ---
 
@@ -162,8 +188,9 @@ This implementation provides:
 - aligned allocation
 - constant-time reset
 - marker-based rollback
+- scoped rewind guard with optional `dismiss()`
 - raw storage only (no object construction or destruction)
-- explicit contract enforcement in debug and release builds
+- explicit contract enforcement with fail-fast behavior on invalid usage
 - single-threaded design
 
 It is designed as a **scratch allocator** for temporary working data.
@@ -175,14 +202,18 @@ It is designed as a **scratch allocator** for temporary working data.
 - `alignment` must be non-zero
 - `alignment` must be a power of two
 - `alignment` must not exceed `max_alignment`
-- markers are only valid for the arena that created them
-- markers may become invalid after `reset()` or after rewinding past them
-- allocation failure due to insufficient capacity returns `nullptr`
+- insufficient capacity returns `nullptr`
 - returned memory is raw, uninitialized storage
+- markers are only valid for the arena that created them
+- `reset()` invalidates previously created markers and active scoped rewind guards
+- destroying an active scoped rewind guard rewinds the arena to its captured marker
+- `dismiss()` disables automatic rewind
 
 ---
 
 ## Example Usage
+
+### Manual mark / rewind
 
 ```cpp
 Arena arena(...);
@@ -195,6 +226,34 @@ void* buffer = arena.allocate(...);
 // process data
 
 arena.rewind(marker); // reclaim temporary allocations
+```
+
+### Scoped rewind
+
+```cpp
+Arena arena(...);
+
+{
+  auto scope = arena.scoped_rewind();
+
+  void* buffer = arena.allocate(...);
+
+  // process data
+
+} // automatic rewind here
+```
+
+### Scoped rewind with dismiss
+
+```cpp
+Arena arena(...);
+
+auto scope = arena.scoped_rewind();
+
+void* buffer = arena.allocate(...);
+
+// keep allocations after scope exit
+scope.dismiss();
 ```
 
 ---
@@ -211,7 +270,8 @@ arena.rewind(marker); // reclaim temporary allocations
 
 - Memory returned is raw storage; object lifetime is managed by the caller
 - `reset()` and `rewind()` do not call destructors
-- Invalid usage is treated as a programmer error; contract violations are reported with file/line information and terminate execution
+- Invalid usage is treated as a programmer error; contract violations are reported and terminate execution
+- Active scoped rewind guards must not be invalidated by `reset()` or incompatible rewinds
 - Not thread-safe
 
 ---

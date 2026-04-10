@@ -97,6 +97,8 @@ Properties:
 - `rewind()` restores the offset
 - `reset()` invalidates previously created markers
 - markers are only valid for the arena instance that created them
+- a scoped rewind guard captures a marker and rewinds automatically on destruction
+- `dismiss()` disables the automatic rewind
 - memory is not cleared, only made reusable
 - no destructors are called
 
@@ -110,6 +112,7 @@ The allocator relies on the following invariants:
 - all returned pointers lie within `[buffer, buffer + capacity)`
 - offset only moves forward, except through `rewind()` or `reset()`
 - allocation succeeds only if both alignment padding and requested size fit within remaining capacity
+- an active scoped rewind guard owns a valid rewind point for the current arena state
 
 Correctness of allocation depends on maintaining these invariants.
 
@@ -128,6 +131,7 @@ The allocator distinguishes between:
 - invalid alignment
 - alignment greater than `max_alignment`
 - invalid marker usage
+- invalidation of an active scoped rewind guard
 
 These are contract violations:
 
@@ -148,9 +152,11 @@ The arena provides raw storage only:
 
 This keeps allocation separate from object lifetime management.
 
-Important implication:
+Important implications:
 
 > `rewind()` and `reset()` invalidate storage without calling destructors.
+
+> An active scoped rewind guard also participates in lifetime management of arena state: destroying it rewinds storage unless it has been dismissed.
 
 ---
 
@@ -193,7 +199,6 @@ It is designed as a scratch allocator for:
 
 Possible extensions include:
 
-- scoped allocation helpers (RAII-based rewind)
 - support for externally provided buffers
 - limited typed construction helpers
 

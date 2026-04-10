@@ -138,3 +138,8 @@ void Arena::rewind(Arena::Marker marker)
 
   _offset = marker._offset;
 }
+
+Arena::ScopedRewind Arena::scoped_rewind()
+{
+  return ScopedRewind(this);
+}

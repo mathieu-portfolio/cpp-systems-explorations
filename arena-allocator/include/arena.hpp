@@ -14,10 +14,34 @@ public:
     size_t _offset;
     const Arena* _owner;
 
-    Marker(size_t offset, const Arena* owner)
-      : _offset(offset), _owner(owner) { }
+    Marker(size_t offset, const Arena* owner) : _offset(offset), _owner(owner) { }
 
     friend class Arena;
+  };
+
+  class ScopedRewind {
+  private:
+    Marker _marker;
+    Arena* _owner;
+    bool _active;
+
+    ScopedRewind(Arena* owner) : _marker(owner->mark()), _owner(owner), _active(true) { }
+
+    friend class Arena;
+
+  public:
+    ~ScopedRewind() noexcept {
+      if (_active) {
+        _owner->rewind(_marker);
+      }
+    }
+
+    ScopedRewind(const ScopedRewind&) = delete;
+    ScopedRewind& operator=(const ScopedRewind&) = delete;
+    ScopedRewind(ScopedRewind&&) = delete;
+    ScopedRewind& operator=(ScopedRewind&&) = delete;
+
+    void dismiss() noexcept { _active = false; }
   };
 
   explicit Arena(size_t capacity, size_t max_alignment);
@@ -32,6 +56,7 @@ public:
   void reset();
   Marker mark() const;
   void rewind(Marker marker);
+  ScopedRewind scoped_rewind();
 
   size_t capacity() const noexcept { return _capacity; }
   size_t max_alignment() const noexcept { return _max_alignment; }

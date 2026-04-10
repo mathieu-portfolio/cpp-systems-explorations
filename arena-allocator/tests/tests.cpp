@@ -91,6 +91,48 @@ void nested_markers()
   CHECK(a == d);
 }
 
+void scoped_rewind()
+{
+  Arena arena(32, 8);
+
+  arena.allocate(8, 4);
+  size_t used_before_scope = arena.used();
+
+  {
+    auto scope = arena.scoped_rewind();
+
+    void* temp = arena.allocate(8, 4);
+    CHECK(temp != nullptr);
+    CHECK(arena.used() > used_before_scope);
+  }
+
+  CHECK(arena.used() == used_before_scope);
+}
+
+void scoped_rewind_dismiss()
+{
+  Arena arena(32, 8);
+
+  arena.allocate(8, 4);
+
+  size_t used_before_scope = arena.used();
+  size_t used_inside_scope = 0;
+
+  {
+    auto scope = arena.scoped_rewind();
+
+    void* temp = arena.allocate(8, 4);
+    CHECK(temp != nullptr);
+
+    used_inside_scope = arena.used();
+    CHECK(used_inside_scope > used_before_scope);
+
+    scope.dismiss();
+  }
+
+  CHECK(arena.used() == used_inside_scope);
+}
+
 int main()
 {
   basic_allocation();
@@ -99,6 +141,8 @@ int main()
   reset();
   markers();
   nested_markers();
+  scoped_rewind();
+  scoped_rewind_dismiss();
 
   std::cout << "All tests passed\n";
 }

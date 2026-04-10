@@ -45,7 +45,8 @@ Allocation is implemented as:
 
 The arena buffer is allocated with a fixed maximum alignment:
 
-- all allocations must satisfy: `alignment <= max_alignment`
+- all requested alignments must be non-zero powers of two
+- all requested alignments must satisfy: `alignment <= max_alignment`
 - alignment is enforced via padding
 
 ```text
@@ -94,6 +95,8 @@ Properties:
 
 - `mark()` captures the current offset
 - `rewind()` restores the offset
+- `reset()` invalidates previously created markers
+- markers are only valid for the arena instance that created them
 - memory is not cleared, only made reusable
 - no destructors are called
 
@@ -106,7 +109,7 @@ The allocator relies on the following invariants:
 - `0 <= offset <= capacity`
 - all returned pointers lie within `[buffer, buffer + capacity)`
 - offset only moves forward, except through `rewind()` or `reset()`
-- alignment padding does not exceed remaining capacity
+- allocation succeeds only if both alignment padding and requested size fit within remaining capacity
 
 Correctness of allocation depends on maintaining these invariants.
 
@@ -126,10 +129,11 @@ The allocator distinguishes between:
 - alignment greater than `max_alignment`
 - invalid marker usage
 
-These are:
+These are contract violations:
 
-- enforced with `assert` in debug builds
-- considered invalid usage in release builds
+- checked explicitly in both debug and release builds
+- reported with file/line information
+- treated as fail-fast errors
 
 This keeps the allocator minimal and fast.
 

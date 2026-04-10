@@ -163,10 +163,22 @@ This implementation provides:
 - constant-time reset
 - marker-based rollback
 - raw storage only (no object construction or destruction)
-- debug-enforced preconditions
+- explicit contract enforcement in debug and release builds
 - single-threaded design
 
 It is designed as a **scratch allocator** for temporary working data.
+
+---
+
+## API Contract
+
+- `alignment` must be non-zero
+- `alignment` must be a power of two
+- `alignment` must not exceed `max_alignment`
+- markers are only valid for the arena that created them
+- markers may become invalid after `reset()` or after rewinding past them
+- allocation failure due to insufficient capacity returns `nullptr`
+- returned memory is raw, uninitialized storage
 
 ---
 
@@ -199,7 +211,7 @@ arena.rewind(marker); // reclaim temporary allocations
 
 - Memory returned is raw storage; object lifetime is managed by the caller
 - `reset()` and `rewind()` do not call destructors
-- Invalid usage is treated as a programmer error and checked with assertions in debug builds
+- Invalid usage is treated as a programmer error; contract violations are reported with file/line information and terminate execution
 - Not thread-safe
 
 ---

@@ -3,7 +3,9 @@ set -euo pipefail
 
 BUILD_DIR="build"
 BUILD_TYPE="${1:-Debug}"
-TARGET="arena_tests"
 
-cmake --build "$BUILD_DIR" --target "$TARGET" --config "$BUILD_TYPE"
-"./$BUILD_DIR/$BUILD_TYPE/$TARGET"
+# Build everything (including tests)
+cmake --build "$BUILD_DIR" --config "$BUILD_TYPE"
+
+# Run all tests via CTest
+ctest --test-dir "$BUILD_DIR" -C "$BUILD_TYPE" --output-on-failure -V

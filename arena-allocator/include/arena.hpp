@@ -56,7 +56,7 @@ public:
   void reset();
   Marker mark() const;
   void rewind(Marker marker);
-  ScopedRewind scoped_rewind();
+  [[nodiscard]] ScopedRewind scoped_rewind();
 
   size_t capacity() const noexcept { return _capacity; }
   size_t max_alignment() const noexcept { return _max_alignment; }

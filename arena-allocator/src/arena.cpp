@@ -13,46 +13,23 @@ static bool is_power_of_two(size_t x)
   const char* file,
   int line,
   const char* expression,
-  const char* message = nullptr)
+  const char* message)
 {
-  if (message != nullptr)
-  {
-    std::fprintf(
-      stderr,
-      "Arena contract violation at %s:%d\n"
-      "  expression: %s\n"
-      "  message: %s\n",
-      file,
-      line,
-      expression,
-      message
-    );
-  }
-  else
-  {
-    std::fprintf(
-      stderr,
-      "Arena contract violation at %s:%d\n"
-      "  expression: %s\n",
-      file,
-      line,
-      expression
-    );
-  }
+  std::fprintf(
+    stderr,
+    "Arena contract violation at %s:%d\n"
+    "  expression: %s\n"
+    "  message: %s\n",
+    file,
+    line,
+    expression,
+    message
+  );
 
   std::abort();
 }
 
-#define ARENA_CHECK_1(expr)                                                     \
-  do                                                                            \
-  {                                                                             \
-    if (!(expr))                                                                \
-    {                                                                           \
-      arena_contract_fail(__FILE__, __LINE__, #expr);                           \
-    }                                                                           \
-  } while (false)
-
-#define ARENA_CHECK_2(expr, message)                                            \
+#define ARENA_CHECK(expr, message)                                              \
   do                                                                            \
   {                                                                             \
     if (!(expr))                                                                \
@@ -60,10 +37,6 @@ static bool is_power_of_two(size_t x)
       arena_contract_fail(__FILE__, __LINE__, #expr, message);                  \
     }                                                                           \
   } while (false)
-
-#define ARENA_CHECK_GET_MACRO(_1, _2, NAME, ...) NAME
-#define ARENA_CHECK(...)                                                        \
-  ARENA_CHECK_GET_MACRO(__VA_ARGS__, ARENA_CHECK_2, ARENA_CHECK_1)(__VA_ARGS__)
 
 Arena::Arena(size_t capacity, size_t max_alignment)
   : _capacity(capacity), _max_alignment(max_alignment), _offset(0)

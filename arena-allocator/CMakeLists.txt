@@ -29,6 +29,17 @@ target_link_libraries(arena_demo
 )
 
 # -----------------------------
+# Standalone debug executable
+# -----------------------------
+add_executable(arena_standalone_invalid_alignment
+    tests/standalone_invalid_alignment.cpp
+)
+
+target_link_libraries(arena_standalone_invalid_alignment
+    PRIVATE arena
+)
+
+# -----------------------------
 # Testing
 # -----------------------------
 include(CTest)

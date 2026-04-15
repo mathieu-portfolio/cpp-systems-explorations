@@ -7,14 +7,16 @@ private:
   size_t _capacity;
   size_t _max_alignment;
   size_t _offset;
+  size_t _epoch;
 
 public:
   class Marker {
   private:
     size_t _offset;
     const Arena* _owner;
+    size_t _epoch;
 
-    Marker(size_t offset, const Arena* owner) : _offset(offset), _owner(owner) { }
+    Marker(size_t offset, const Arena* owner) : _offset(offset), _owner(owner), _epoch(_owner->_epoch) { }
 
     friend class Arena;
   };

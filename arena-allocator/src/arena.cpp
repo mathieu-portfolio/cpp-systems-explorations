@@ -97,6 +97,7 @@ void* Arena::allocate(size_t size, size_t alignment)
 void Arena::reset()
 {
   _offset = 0;
+  _epoch++;
 }
 
 Arena::Marker Arena::mark() const
@@ -107,6 +108,7 @@ Arena::Marker Arena::mark() const
 void Arena::rewind(Arena::Marker marker)
 {
   ARENA_CHECK(marker._owner == this, "marker does not belong to this arena");
+  ARENA_CHECK(marker._epoch == _epoch, "marker epoch is not valid for current arena state");
   ARENA_CHECK(marker._offset <= _offset, "marker offset is not valid for current arena state");
 
   _offset = marker._offset;

@@ -66,3 +66,47 @@ TEST(ArenaDeathTest, RewindRejectsMarkerFromDifferentArena)
     ""
   );
 }
+
+TEST(ArenaDeathTest, RewindRejectsMarkerCreatedBeforeReset)
+{
+  EXPECT_DEATH(
+    {
+      Arena arena(32, 8);
+      auto marker = arena.mark();
+      arena.reset();
+      arena.rewind(marker);
+    },
+    ""
+  );
+}
+
+TEST(ArenaDeathTest, ScopedRewindRejectsResetInvalidation)
+{
+  EXPECT_DEATH(
+    {
+      Arena arena(32, 8);
+      auto scope = arena.scoped_rewind();
+      arena.reset();
+    },
+    ""
+  );
+}
+
+TEST(ArenaDeathTest, RewindRejectsMarkerFromDiscardedFutureState)
+{
+  EXPECT_DEATH(
+    {
+      Arena arena(64, 8);
+
+      auto m1 = arena.mark();
+      ASSERT_NE(arena.allocate(8, 4), nullptr);
+
+      auto m2 = arena.mark();
+      ASSERT_NE(arena.allocate(8, 4), nullptr);
+
+      arena.rewind(m1);
+      arena.rewind(m2);
+    },
+    ""
+  );
+}

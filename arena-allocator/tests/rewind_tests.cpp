@@ -145,3 +145,27 @@ TEST(ArenaRewindTest, ResetAllowsStorageReuse)
 
   EXPECT_EQ(a, b);
 }
+
+TEST(ArenaRewindTest, NestedScopedRewindsRemainValidInLifoOrder)
+{
+  Arena arena(64, 8);
+
+  ASSERT_NE(arena.allocate(8, 4), nullptr);
+  const size_t used_before_outer = arena.used();
+
+  {
+    auto outer = arena.scoped_rewind();
+    ASSERT_NE(arena.allocate(8, 4), nullptr);
+    const size_t used_before_inner = arena.used();
+
+    {
+      auto inner = arena.scoped_rewind();
+      ASSERT_NE(arena.allocate(8, 4), nullptr);
+      EXPECT_GT(arena.used(), used_before_inner);
+    }
+
+    EXPECT_EQ(arena.used(), used_before_inner);
+  }
+
+  EXPECT_EQ(arena.used(), used_before_outer);
+}

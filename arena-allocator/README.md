@@ -261,8 +261,28 @@ scope.dismiss();
 ## Project Structure
 
 - `arena` (library): allocator implementation
-- `arena_tests`: correctness and invariants
+- `arena_tests`: GoogleTest suite (allocation, invariants, rewind, contract violations)
 - `arena_demo`: practical usage example
+
+---
+
+## Testing
+
+The project includes a comprehensive test suite using GoogleTest.
+
+Tests cover:
+- allocation behavior (alignment, padding, exhaustion)
+- state invariants (`used()`, `remaining()`)
+- mark/rewind and scoped rewind semantics
+- contract violations (invalid alignment, invalid marker usage)
+
+Contract violations are tested with death tests, ensuring fail-fast behavior.
+
+Run tests with:
+
+```bash
+ctest --output-on-failure
+```
 
 ---
 

@@ -1,6 +1,6 @@
 # Custom Vector
 
-**Version:** v1.0
+**Version:** v2.0
 
 ## Problem
 
@@ -27,72 +27,43 @@ This project implements a minimal `std::vector`-like container with:
 - manual memory management
 - explicit object lifetime control
 - predictable growth strategy
-
-> Store objects in contiguous memory and manage their lifetime explicitly.
-
----
-
-## Key Idea
-
-The vector separates:
-
-- raw memory allocation
-- object construction and destruction
-
-This allows precise control over:
-
-- when objects exist
-- when memory is reused
-- how ownership is transferred
+- basic iterator support
 
 ---
 
 ## Usage
 
-### Emplace
+### Insertion
 
 ```cpp
-v.emplace_back(args...);
+Vector<int> v;
+v.emplace_back(1);
+v.emplace_back(2);
 ```
 
-Constructs an element directly in-place.
-
----
-
-### Push Back
+### Iteration
 
 ```cpp
-v.push_back(value);
-v.push_back(std::move(value));
+for (const auto& x : v) {
+    // use x
+}
 ```
 
-Adds an element using copy or move semantics.
+### Access
 
----
+```cpp
+v[0] = 42;
+```
 
 ### Reserve
 
 ```cpp
-v.reserve(n);
+v.reserve(10);
 ```
-
-Ensures capacity without changing size.
-
----
-
-### Clear
-
-```cpp
-v.clear();
-```
-
-Destroys all elements but keeps allocated storage.
 
 ---
 
 ## Scope
-
-This project focuses on:
 
 - correctness
 - memory model understanding
@@ -106,7 +77,7 @@ This project focuses on:
 - not STL-compatible
 - no allocator support
 - minimal exception handling
-- no iterator support
+- no advanced iterator model
 - single-threaded
 
 ---
@@ -115,12 +86,10 @@ This project focuses on:
 
 - `vector` — implementation
 - `demo` — usage examples
-- `tests` — unit tests for invariants, lifetime, copy/move behavior, and reallocation
+- `tests` — unit tests
 
 ---
 
 ## Notes
 
 This is a learning-focused implementation.
-
-For detailed design and technical reasoning, see `DESIGN.md`.

@@ -43,10 +43,11 @@ if(BUILD_TESTING)
     FetchContent_MakeAvailable(googletest)
 
     add_executable(vector_tests
-        tests/vector_basic_tests.cpp
-        tests/vector_copy_move_tests.cpp
-        tests/vector_lifetime_tests.cpp
+        tests/basic_tests.cpp
+        tests/copy_move_tests.cpp
+        tests/lifetime_tests.cpp
         tests/death_tests.cpp
+        tests/iterator_tests.cpp
     )
 
     target_link_libraries(vector_tests

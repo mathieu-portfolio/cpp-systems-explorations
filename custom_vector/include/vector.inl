@@ -80,7 +80,7 @@ Vector<T>::Vector(const Vector& other)
     size_(0),
     capacity_(other.capacity_)
 {
-  for (size_type i = 0 ; i < size_ ; i++)
+  for (size_type i = 0 ; i < other.size_ ; i++)
   {
     new (data_ + i) T(other.data_[i]);
     ++size_;
@@ -88,7 +88,7 @@ Vector<T>::Vector(const Vector& other)
 }
 
 template <typename T>
-Vector<T>::Vector(Vector&& other)
+Vector<T>::Vector(Vector&& other) noexcept
   : data_(other.data_),
     size_(other.size_),
     capacity_(other.capacity_)
@@ -149,6 +149,20 @@ void Vector<T>::clear()
     data_[i - 1].~T();
   }
   size_ = 0;
+}
+
+template <typename T>
+T& Vector<T>::operator[](size_type index)
+{
+  VECTOR_CHECK(index < size_, "operator[] index out of bounds");
+  return data_[index];
+}
+
+template <typename T>
+const T& Vector<T>::operator[](size_type index) const
+{
+  VECTOR_CHECK(index < size_, "operator[] index out of bounds");
+  return data_[index];
 }
 
 template <typename T>

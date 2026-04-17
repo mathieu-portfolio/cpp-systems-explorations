@@ -156,7 +156,7 @@ void Vector<T>::reserve(size_type new_capacity)
 
   for (size_type i = 0; i < size_; ++i)
   {
-    new (new_data + i) T(data_[i]);
+    new (new_data + i) T(std::move(data_[i]));
   }
 
   for (size_type i = size_; i > 0; --i)

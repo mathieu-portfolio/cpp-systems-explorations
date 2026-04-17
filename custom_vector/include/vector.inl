@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <new>
+#include <utility>
 
 [[noreturn]] static void vector_contract_fail(
   const char* file,
@@ -31,6 +32,14 @@
     }                                                                           \
   } while (false)
 
+template <typename T>
+void Vector<T>::assert_invariants() const
+{
+  VECTOR_CHECK(size_ <= capacity_, "size_ must not exceed capacity_");
+  VECTOR_CHECK(
+    (data_ == nullptr) == (capacity_ == 0),
+    "data_ must be nullptr iff capacity_ == 0");
+}
 
 template <typename T>
 void Vector<T>::swap(Vector& other) noexcept
@@ -38,6 +47,9 @@ void Vector<T>::swap(Vector& other) noexcept
   std::swap(data_, other.data_);
   std::swap(size_, other.size_);
   std::swap(capacity_, other.capacity_);
+
+  assert_invariants();
+  other.assert_invariants();
 }
 
 template <typename T>
@@ -50,10 +62,16 @@ void Vector<T>::take_from(Vector& other) noexcept
   other.data_ = nullptr;
   other.size_ = 0;
   other.capacity_ = 0;
+
+  assert_invariants();
+  other.assert_invariants();
 }
 
 template <typename T>
-Vector<T>::Vector() : data_(nullptr), size_(0), capacity_(0) {}
+Vector<T>::Vector() : data_(nullptr), size_(0), capacity_(0)
+{
+  assert_invariants();
+}
 
 template <typename T>
 Vector<T>::Vector(size_type capacity)
@@ -63,6 +81,7 @@ Vector<T>::Vector(size_type capacity)
     size_(0),
     capacity_(capacity)
 {
+  assert_invariants();
 }
 
 template <typename T>
@@ -80,11 +99,13 @@ Vector<T>::Vector(const Vector& other)
     size_(0),
     capacity_(other.capacity_)
 {
-  for (size_type i = 0 ; i < other.size_ ; i++)
+  for (size_type i = 0; i < other.size_; ++i)
   {
     new (data_ + i) T(other.data_[i]);
     ++size_;
   }
+
+  assert_invariants();
 }
 
 template <typename T>
@@ -96,14 +117,20 @@ Vector<T>::Vector(Vector&& other) noexcept
   other.data_ = nullptr;
   other.size_ = 0;
   other.capacity_ = 0;
+
+  assert_invariants();
+  other.assert_invariants();
 }
 
 template <typename T>
 Vector<T>& Vector<T>::operator=(const Vector& other)
 {
   if (this == &other) return *this;
+
   Vector temp(other);
   swap(temp);
+
+  assert_invariants();
   return *this;
 }
 
@@ -111,9 +138,12 @@ template <typename T>
 Vector<T>& Vector<T>::operator=(Vector&& other) noexcept
 {
   if (this == &other) return *this;
+
   clear();
   ::operator delete(data_);
   take_from(other);
+
+  assert_invariants();
   return *this;
 }
 
@@ -122,33 +152,36 @@ void Vector<T>::reserve(size_type new_capacity)
 {
   if (new_capacity <= capacity_) return;
 
-  T* new_data = new_capacity == 0
-    ? nullptr
-    : reinterpret_cast<T*>(::operator new(sizeof(T) * new_capacity));
-  
-  for (size_type i = 0 ; i < size_ ; i++)
+  T* new_data = reinterpret_cast<T*>(::operator new(sizeof(T) * new_capacity));
+
+  for (size_type i = 0; i < size_; ++i)
   {
     new (new_data + i) T(data_[i]);
   }
-  
-  for (size_type i = size_ ; i > 0 ; --i)
+
+  for (size_type i = size_; i > 0; --i)
   {
     data_[i - 1].~T();
   }
+
   ::operator delete(data_);
 
   data_ = new_data;
   capacity_ = new_capacity;
+
+  assert_invariants();
 }
 
 template <typename T>
 void Vector<T>::clear()
 {
-  for (size_type i = size_ ; i > 0 ; --i)
+  for (size_type i = size_; i > 0; --i)
   {
     data_[i - 1].~T();
   }
+
   size_ = 0;
+  assert_invariants();
 }
 
 template <typename T>
@@ -187,7 +220,8 @@ T& Vector<T>::emplace_back(Args&&... args)
   }
 
   new (data_ + size_) T(std::forward<Args>(args)...);
-  size_++;
+  ++size_;
 
+  assert_invariants();
   return data_[size_ - 1];
 }

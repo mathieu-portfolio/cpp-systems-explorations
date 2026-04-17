@@ -1,7 +1,5 @@
 #include <gtest/gtest.h>
-
 #include "vector.hpp"
-
 #include "test_utils.hpp"
 
 TEST(VectorBasic, DefaultConstructedIsEmpty) {

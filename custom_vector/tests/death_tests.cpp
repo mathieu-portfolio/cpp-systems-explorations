@@ -1,5 +1,4 @@
 #include <gtest/gtest.h>
-
 #include "vector.hpp"
 
 TEST(VectorDeathTest, OperatorIndexFailsOnEmptyVector) {

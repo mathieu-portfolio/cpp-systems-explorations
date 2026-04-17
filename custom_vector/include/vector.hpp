@@ -15,6 +15,7 @@ private:
     std::size_t size_;
     std::size_t capacity_;
 
+    void assert_invariants() const;
     void swap(Vector& other) noexcept;
     void take_from(Vector& other) noexcept;
 

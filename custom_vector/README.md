@@ -1,5 +1,7 @@
 # Custom Vector
 
+**Version:** v1.0
+
 ## Problem
 
 Dynamic arrays are a fundamental data structure in systems programming.

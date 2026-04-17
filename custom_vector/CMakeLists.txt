@@ -29,29 +29,38 @@ target_link_libraries(vector_demo
 # -----------------------------
 # Testing
 # -----------------------------
-# include(CTest)
-#
-# if(BUILD_TESTING)
-#     include(FetchContent)
-#
-#     FetchContent_Declare(
-#         googletest
-#         GIT_REPOSITORY https://github.com/google/googletest.git
-#         GIT_TAG v1.17.0
-#     )
-#
-#     FetchContent_MakeAvailable(googletest)
-#
-#     add_executable(vector_tests
-#         tests/death_tests.cpp
-#     )
-#
-#     target_link_libraries(vector_tests
-#         PRIVATE
-#             vector
-#             GTest::gtest_main
-#     )
-#
-#     include(GoogleTest)
-#     gtest_discover_tests(vector_tests)
-# endif()
+include(CTest)
+
+if(BUILD_TESTING)
+    include(FetchContent)
+
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.17.0
+    )
+
+    FetchContent_MakeAvailable(googletest)
+
+    add_executable(vector_tests
+        tests/vector_basic_tests.cpp
+        tests/vector_copy_move_tests.cpp
+        tests/vector_lifetime_tests.cpp
+        tests/death_tests.cpp
+    )
+
+    target_link_libraries(vector_tests
+        PRIVATE
+            vector
+            GTest::gtest_main
+    )
+
+    target_include_directories(vector_tests
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    )
+
+    include(GoogleTest)
+    gtest_discover_tests(vector_tests)
+endif()

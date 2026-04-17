@@ -113,7 +113,7 @@ This project focuses on:
 
 - `vector` — implementation
 - `demo` — usage examples
-- `tests` — unit tests
+- `tests` — unit tests for invariants, lifetime, copy/move behavior, and reallocation
 
 ---
 

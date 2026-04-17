@@ -2,6 +2,16 @@
 
 A collection of small projects to explore low-level C++ concepts.
 
+## Approach
+
+Each project in this repository focuses on a single concept:
+
+- minimal surface area
+- explicit ownership and lifetime
+- clear invariants and contracts
+
+The goal is to build small systems that are easy to reason about and discuss.
+
 ## Projects
 
 - [Arena Allocator](./arena_allocator/)

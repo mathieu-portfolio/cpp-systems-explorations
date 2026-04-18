@@ -3,11 +3,38 @@
 
 ThreadPool::ThreadPool(std::size_t thread_count)
 {
-  for (std::size_t i = 0; i < thread_count; ++i)
+  if (thread_count == 0)
   {
-    workers_.emplace_back([this] {
-      worker_loop();
-    });
+    throw std::invalid_argument("ThreadPool requires at least one worker thread");
+  }
+
+  workers_.reserve(thread_count);
+
+  try
+  {
+    for (std::size_t i = 0; i < thread_count; ++i)
+    {
+      workers_.emplace_back([this] { worker_loop(); });
+    }
+  }
+  catch (...)
+  {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      stop_ = true;
+    }
+
+    cv_.notify_all();
+
+    for (auto &worker : workers_)
+    {
+      if (worker.joinable())
+      {
+        worker.join();
+      }
+    }
+
+    throw;
   }
 }
 
@@ -16,17 +43,43 @@ ThreadPool::~ThreadPool()
   {
     std::lock_guard<std::mutex> lock(mutex_);
     stop_ = true;
+    assert_locked_invariants();
   }
 
   cv_.notify_all();
 
-  for (auto& t : workers_)
+  for (auto &worker : workers_)
   {
-    if (t.joinable())
+    if (worker.joinable())
     {
-      t.join();
+      worker.join();
     }
   }
+}
+
+void ThreadPool::submit(std::function<void()> job)
+{
+  if (!job)
+  {
+    throw std::invalid_argument("submit() requires a valid job");
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    assert_locked_invariants();
+
+    if (stop_)
+    {
+      throw std::runtime_error("submit() called on stopped ThreadPool");
+    }
+
+    jobs_.push(std::move(job));
+
+    assert_locked_invariants();
+  }
+
+  cv_.notify_one();
 }
 
 void ThreadPool::worker_loop()
@@ -38,35 +91,34 @@ void ThreadPool::worker_loop()
     {
       std::unique_lock<std::mutex> lock(mutex_);
 
-      cv_.wait(lock, [this] {
-        return stop_ || !jobs_.empty();
-      });
+      cv_.wait(lock, [this] { return stop_ || !jobs_.empty(); });
+
+      assert_locked_invariants();
 
       if (stop_ && jobs_.empty())
       {
         return;
       }
 
+      THREAD_POOL_CHECK(!jobs_.empty(), "worker must not pop from an empty queue");
+
       job = std::move(jobs_.front());
       jobs_.pop();
+
+      assert_locked_invariants();
     }
 
     job();
   }
 }
 
-void ThreadPool::submit(std::function<void()> job)
+void ThreadPool::assert_locked_invariants() const
 {
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
+  THREAD_POOL_CHECK(
+    workers_.size() > 0,
+    "ThreadPool must own at least one worker thread");
 
-    if (stop_)
-    {
-      throw std::runtime_error("submit() called on stopped ThreadPool");
-    }
-
-    jobs_.push(std::move(job));
-  }
-
-  cv_.notify_one();
+  THREAD_POOL_CHECK(
+    stop_ || true,
+    "stop_ must be a valid boolean state");
 }

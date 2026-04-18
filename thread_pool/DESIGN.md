@@ -1,25 +1,21 @@
 # Design Notes
 
-Internal design document for the current thread pool implementation.
+Internal design document for the thread pool project.
 
 ## Purpose
 
-This file tracks the current design, invariants, behavior contracts, and near-term goals for the project.
-
-The implementation is intentionally minimal. The main objective is to keep the concurrency model small enough to reason about precisely.
-
----
+This document captures the intended semantics, invariants, and end goals of the system. It is meant to define what the pool must guarantee, not just describe how the current code happens to work.
 
 ## Scope
 
 ### In Scope
 
 - fixed number of worker threads
-- shared queue of `std::function<void()>`
-- submission from one or more producer threads
-- worker coordination via mutex + condition variable
-- graceful destructor-driven shutdown
-- tests for basic behavior, shutdown, and concurrent submission
+- asynchronous submission of fire-and-forget jobs
+- concurrent submission from multiple producers
+- orderly draining shutdown
+- explicit API contracts and invariants
+- tests for basic behavior, shutdown behavior, contract enforcement, and concurrent submission
 
 ### Out of Scope
 
@@ -31,216 +27,29 @@ The implementation is intentionally minimal. The main objective is to keep the c
 - priorities
 - task dependencies
 
----
+## Core Semantics
 
-## Current Public API
+- The pool owns a fixed set of worker threads for its entire lifetime.
+- Submitted jobs are executed asynchronously by worker threads.
+- Successfully accepted jobs are the responsibility of the pool until completion.
+- Shutdown is draining, not abandoning: accepted work completes before the pool is destroyed.
+- The pool exposes a small contract surface and favors explicit failure over ambiguous behavior.
 
-```cpp
-class ThreadPool {
-public:
-    explicit ThreadPool(std::size_t thread_count);
-    ~ThreadPool();
+## Semantic Invariants
 
-    void submit(std::function<void()> job);
-};
-```
+- Accepted work is never lost: once a job is accepted by the pool, it remains the pool's responsibility until completion.
 
----
+- Accepted work executes at most once: no accepted job may be started or completed more than once.
 
-## State Model
+- No work is accepted after shutdown begins: once the pool enters shutdown, all subsequent submissions are rejected.
 
-Core state:
+- Workers do not terminate while accepted work remains incomplete: shutdown is draining, not abandoning.
 
-- `workers_`
-  - owns the worker threads for the entire lifetime of the pool
+- Destruction is a full lifetime barrier: when the pool is destroyed, all accepted work has completed and no worker may still access pool-owned state.
 
-- `jobs_`
-  - queue of submitted but not yet started jobs
-  - logically owned by the pool
+- Pool behavior is determined only by synchronized shared state: decisions about accepting work, waiting, executing, and terminating are based on coherent state transitions.
 
-- `mutex_`
-  - protects all shared mutable state involved in coordination
-
-- `cv_`
-  - used to wake sleeping workers when new work arrives or shutdown begins
-
-- `stop_`
-  - shutdown flag
-  - indicates that no new jobs should be accepted
-  - once set, workers should exit after the queue is drained
-
----
-
-## Core Invariants
-
-### Invariant 1: Shared state is synchronized consistently
-All accesses to `jobs_` and `stop_` occur while holding `mutex_`.
-
-Reason:
-- the queue is not thread-safe
-- worker wake/sleep decisions depend on combined state
-- the condition variable predicate must observe coherent state
-
-### Invariant 2: Queue ownership is transferred on successful submit
-If `submit()` returns normally, ownership of the callable has been transferred into `jobs_`.
-
-Reason:
-- caller should no longer rely on the submitted callable object
-- pool becomes responsible for eventual execution
-
-### Invariant 3: Jobs execute outside the mutex
-A worker removes one job from the queue while holding `mutex_`, then releases the lock before invoking the job.
-
-Reason:
-- prevents job execution from blocking submission and dequeue
-- avoids serializing unrelated jobs under the queue lock
-- reduces lock hold time
-
-### Invariant 4: Shutdown is draining, not abandoning
-Once `stop_` becomes true:
-- new submissions are rejected
-- already queued jobs remain eligible for execution
-- workers exit only when both:
-  - `stop_ == true`
-  - `jobs_` is empty
-
-### Invariant 5: No worker outlives the pool
-When the destructor returns:
-- all worker threads have exited
-- no worker may access pool state anymore
-
----
-
-## Worker Loop Contract
-
-Worker behavior:
-
-1. acquire `mutex_`
-2. wait on `cv_` until either:
-   - `stop_` is true, or
-   - `jobs_` is not empty
-3. if `stop_` is true and `jobs_` is empty, exit loop
-4. otherwise pop one job from `jobs_`
-5. release `mutex_`
-6. execute the job
-
-This gives the worker a clear exit condition and avoids busy waiting.
-
----
-
-## Submit Contract
-
-Current behavior of `submit(job)`:
-
-- acquires `mutex_`
-- checks `stop_`
-- if shutdown has started, throws
-- otherwise moves the job into `jobs_`
-- releases `mutex_`
-- notifies one worker
-
-Important contract point:
-- notification happens after enqueue
-- enqueue and stop-check happen under the same mutex
-
----
-
-## Shutdown Protocol
-
-Current destructor behavior:
-
-1. acquire `mutex_`
-2. set `stop_ = true`
-3. release `mutex_`
-4. `notify_all()`
-5. join all worker threads
-
-Effect:
-- sleeping workers wake up
-- workers continue draining queued jobs
-- once queue is empty, workers exit
-- destructor blocks until all threads are joined
-
----
-
-## Concurrency Notes
-
-### Why a single mutex?
-The queue and shutdown flag form one logical state machine:
-- “is there work?”
-- “should workers keep waiting?”
-- “are new submissions allowed?”
-
-Using one mutex keeps that state simple and coherent.
-
-### Why use a condition variable?
-Workers should sleep when idle instead of spinning.
-The condition variable allows:
-- efficient blocking when queue is empty
-- wake-up on submission
-- wake-up on shutdown
-
-### Why is the wait predicate important?
-Workers wait for:
-
-```cpp
-stop_ || !jobs_.empty()
-```
-
-This handles:
-- normal wake-up when work arrives
-- shutdown wake-up even if no more jobs will arrive
-- spurious wake-ups safely
-
-### Why execute jobs outside the lock?
-Holding the queue mutex during job execution would:
-- block submitters unnecessarily
-- block other workers from dequeuing
-- turn the queue lock into a global execution bottleneck
-
----
-
-## Failure / Edge Cases
-
-### Submission during shutdown
-Current policy:
-- reject by throwing from `submit()`
-
-This makes shutdown behavior explicit, though the API may later be reconsidered.
-
-### Job throws an exception
-This is a current design pressure point.
-
-If a job exception escapes a worker thread function, the process will terminate.
-Possible policies later:
-- document “jobs must not throw”
-- catch all exceptions in the worker loop
-
-This needs to be decided explicitly if the project evolves.
-
-### Zero worker threads
-This should be treated as an API decision.
-Open question:
-- allow it and effectively never make progress?
-- reject it in the constructor?
-
-Current recommendation: reject invalid thread counts explicitly.
-
----
-
-## Testing Status
-
-Current test coverage is intended to validate:
-
-- submitted jobs execute
-- destructor waits for queued work
-- more jobs than workers are handled correctly
-- concurrent submitters work correctly
-- many small jobs complete
-
-These tests do not prove full correctness, but they do exercise the intended basic contract.
-
----
+- Idle workers wait efficiently for meaningful state changes: workers block when no work is available and wake only when work arrives or shutdown progresses.
 
 ## End Goals
 
@@ -254,23 +63,70 @@ These tests do not prove full correctness, but they do exercise the intended bas
 
 - Define deterministic shutdown semantics: once shutdown begins, no new work is accepted, all accepted work is completed, and all worker threads terminate before the pool is destroyed.
 
-- Ensure absence of data races in the pool’s internal state through well-defined synchronization boundaries.
+- Ensure absence of data races in the pool's internal state through well-defined synchronization boundaries.
 
 - Provide a clear worker contract: workers wait efficiently when no work is available, execute available jobs, and terminate only when no further work can arrive and all pending work has been processed.
 
-- Maintain a simple and explicit state model: the system behavior can be explained in terms of a small number of states (accepting work, draining, terminated) with well-defined transitions.
+- Maintain a simple and explicit state model: the system behavior can be explained in terms of a small number of states with well-defined transitions.
 
 - Keep the design minimal and explainable: the system should be small enough to reason about formally, with invariants and guarantees that can be stated precisely.
 
 - Serve as a foundation for more advanced execution models, while keeping the current semantics stable and well-defined.
 
----
+## Public Contract
+
+### Construction
+
+- Constructing the pool with zero worker threads is invalid and throws.
+- Successful construction creates the pool's full worker set.
+
+### Submission
+
+- Submitting a valid job either succeeds and transfers responsibility to the pool, or fails without the job becoming accepted.
+- Submitting an empty job is invalid and throws.
+- Submitting after shutdown begins is rejected and throws.
+
+### Shutdown
+
+- Shutdown begins when the pool stops accepting new work.
+- Once shutdown begins, previously accepted jobs remain executable.
+- Destruction returns only after accepted work has finished and workers have terminated.
+
+## Runtime Checks vs Semantic Guarantees
+
+### Checked directly at runtime
+
+- constructor preconditions such as a non-zero worker count
+- submission preconditions such as a non-empty callable
+- internal contract violations that represent impossible or invalid states for the implementation
+
+### Guaranteed by design and structure
+
+- accepted work is not abandoned during shutdown
+- accepted work is not executed more than once
+- workers do not outlive the pool
+- worker progress and termination are driven by synchronized state transitions
+
+### Validated through tests
+
+- basic execution of submitted jobs
+- draining shutdown behavior
+- behavior under multiple producers
+- stress behavior with many small jobs
+- contract rejection for invalid construction and invalid submission
+
+## Open Questions
+
+- Exception policy for jobs: whether job exceptions are forbidden by contract or must be caught internally.
+- Exact long-term state model: whether a single shutdown flag remains sufficient or whether explicit named states become clearer.
+- Whether additional externally visible shutdown operations are useful, or whether destructor-driven shutdown should remain the only mechanism.
 
 ## Design Philosophy
 
 Small, explicit, and easy to reason about.
 
 When in doubt:
-- prefer a stronger invariant
+- prefer a stronger semantic guarantee
 - prefer a simpler contract
-- prefer clarity over extra features
+- prefer explicit rejection over ambiguous behavior
+- prefer correctness and clarity over additional features

@@ -1,5 +1,7 @@
 # Thread Pool
 
+**Version:** v1.0
+
 A minimal fixed-size thread pool built as a systems programming exercise.
 
 ## Overview

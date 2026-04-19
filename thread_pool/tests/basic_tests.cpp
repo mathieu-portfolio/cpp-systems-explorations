@@ -9,19 +9,20 @@
 
 TEST(ThreadPoolBasic, ExecutesSubmittedJobs)
 {
-  ThreadPool pool(4);
-
   std::atomic<int> counter{0};
 
-  for (int i = 0; i < 20; ++i)
   {
-    pool.submit([&counter] {
-      counter.fetch_add(1, std::memory_order_relaxed);
-    });
+    ThreadPool pool(4);
+
+    for (int i = 0; i < 20; ++i)
+    {
+      pool.submit([&counter] {
+        counter.fetch_add(1, std::memory_order_relaxed);
+      });
+    }
   }
 
-  // Let destructor synchronize completion if your design guarantees
-  // "finish pending jobs before shutdown".
+  EXPECT_EQ(counter.load(std::memory_order_relaxed), 20);
 }
 
 TEST(ThreadPoolBasic, DestructorWaitsForPendingJobsToFinish)
@@ -71,37 +72,22 @@ TEST(ThreadPoolBasic, JobsCanNotifyCompletion)
 
 TEST(ThreadPoolBasic, MultipleWorkersCanMakeProgress)
 {
-  ThreadPool pool(4);
-
   std::atomic<int> started{0};
   std::atomic<int> finished{0};
 
-  for (int i = 0; i < 8; ++i)
   {
-    pool.submit([&] {
-      started.fetch_add(1, std::memory_order_relaxed);
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
-      finished.fetch_add(1, std::memory_order_relaxed);
-    });
+    ThreadPool pool(4);
+
+    for (int i = 0; i < 8; ++i)
+    {
+      pool.submit([&] {
+        started.fetch_add(1, std::memory_order_relaxed);
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        finished.fetch_add(1, std::memory_order_relaxed);
+      });
+    }
   }
-}
 
-TEST(ThreadPoolContract, RejectsZeroWorkerThreads)
-{
-  EXPECT_THROW(
-    {
-      ThreadPool pool(0);
-    },
-    std::invalid_argument);
-}
-
-TEST(ThreadPoolContract, RejectsEmptyJobSubmission)
-{
-  ThreadPool pool(2);
-
-  EXPECT_THROW(
-    {
-      pool.submit(std::function<void()>{});
-    },
-    std::invalid_argument);
+  EXPECT_EQ(started.load(std::memory_order_relaxed), 8);
+  EXPECT_EQ(finished.load(std::memory_order_relaxed), 8);
 }

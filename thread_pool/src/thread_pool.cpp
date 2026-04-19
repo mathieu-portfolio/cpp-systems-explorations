@@ -108,7 +108,17 @@ void ThreadPool::worker_loop()
       assert_locked_invariants();
     }
 
-    job();
+    try
+    {
+      job();
+    }
+    catch (...)
+    {
+      // Exception policy:
+      // job exceptions are contained within the pool so that
+      // one failing job does not terminate the worker thread
+      // or the entire pool.
+    }
   }
 }
 
@@ -117,8 +127,4 @@ void ThreadPool::assert_locked_invariants() const
   THREAD_POOL_CHECK(
     workers_.size() > 0,
     "ThreadPool must own at least one worker thread");
-
-  THREAD_POOL_CHECK(
-    stop_ || true,
-    "stop_ must be a valid boolean state");
 }

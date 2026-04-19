@@ -49,6 +49,8 @@ if(BUILD_TESTING)
         tests/basic_tests.cpp
         tests/shutdown_tests.cpp
         tests/stress_tests.cpp
+        tests/contract_tests.cpp
+        tests/exception_tests.cpp
     )
 
     target_link_libraries(thread_pool_tests

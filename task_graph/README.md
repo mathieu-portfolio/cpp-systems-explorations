@@ -16,8 +16,10 @@ Instead of manually creating low-level jobs and dependencies, you define:
 
 Example:
 
+```text
 load → parse → transform → save  
 load → validate  
+```
 
 The task graph layer takes that workflow description and compiles it into dependent jobs that the job system can schedule.
 

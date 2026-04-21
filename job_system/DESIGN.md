@@ -17,18 +17,48 @@ The job system is a scheduling layer built on top of the thread pool. It should 
 - `run()` launches the current batch.
 - `wait()` blocks until the batch completes.
 
-## First Semantic Invariants
+## Current Internal Model
+
+Each job node contains:
+
+- a callable
+- a dependency counter (`remaining_dependencies`)
+- a list of dependent jobs
+
+Dependencies are represented as:
+
+- the dependent job increments its dependency counter
+- the prerequisite job stores the dependent in its adjacency list
+
+## Current Invariants
 
 - A job is scheduled for execution at most once.
+- A job's `remaining_dependencies` equals the number of unmet prerequisites.
+- Adding a dependency:
+  - increments the dependent's counter
+  - records the dependent in the prerequisite
+- A job cannot depend on itself.
+- Job IDs must refer to existing jobs.
+- The job graph is immutable after `run()` is called.
+
+## First Semantic Invariants
+
 - A job becomes runnable exactly when all of its dependencies are complete.
 - A job is never executed before its prerequisites complete.
 - Completing a job updates each dependent exactly once.
 - `wait()` returns only after all jobs accepted into the current batch have completed.
 
+## Not Implemented Yet
+
+- Runnable job discovery
+- Submission to the thread pool
+- Completion propagation
+- `wait()` semantics
+
 ## Open Design Questions
 
-- What is the exact `JobId` representation?
-- What states should a job have internally?
+- What is the exact `JobId` representation long-term?
+- What states should a job have internally beyond dependency count?
 - What contract violations should be rejected at API boundaries?
 - What job exception policy should the system adopt?
 - What graph shapes should be supported in v1, and how should cycles be handled?
@@ -39,3 +69,13 @@ The job system is a scheduling layer built on top of the thread pool. It should 
 - Keep dependency semantics explicit and easy to explain.
 - Reuse the existing thread pool cleanly as a lower-level executor.
 - Preserve correctness and clarity over advanced scheduling features.
+
+## Design Philosophy
+
+Small, explicit, and easy to reason about.
+
+When in doubt:
+- prefer stronger invariants
+- prefer simpler lifecycle rules
+- prefer explicit contracts over implicit behavior
+- prefer clear scheduling semantics over feature growth

@@ -30,7 +30,15 @@ public:
     void wait();
 
 private:
-    struct JobNode;
+    struct JobNode
+    {
+        std::function<void()> fn;
+        std::size_t remaining_dependencies = 0;
+        std::vector<JobId> dependents;
+    };
+
+    JobNode& get_job(JobId id);
+    const JobNode& get_job(JobId id) const;
 
     std::vector<JobNode> jobs_;
     ThreadPool* pool_ = nullptr;

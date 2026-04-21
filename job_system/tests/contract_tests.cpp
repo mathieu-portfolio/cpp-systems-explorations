@@ -15,3 +15,16 @@ TEST(JobSystemContract, RejectsEmptyJob)
         },
         std::invalid_argument);
 }
+
+TEST(JobSystemContract, RejectsCreatingJobsAfterRunStarts)
+{
+    JobSystem jobs(2);
+
+    EXPECT_THROW(jobs.run(), std::logic_error);
+
+    EXPECT_THROW(
+        {
+            jobs.create_job([] {});
+        },
+        std::logic_error);
+}

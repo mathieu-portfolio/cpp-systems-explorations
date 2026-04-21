@@ -2,7 +2,7 @@
 
 A minimal batch-oriented job system built on top of the `thread_pool` project.
 
-**Status:** project skeleton
+**Status:** dependency graph implemented, execution not yet implemented
 
 ## Purpose
 
@@ -54,6 +54,15 @@ The first version is intended to be batch-oriented:
 4. wait for completion
 
 This keeps the lifecycle simple and makes the semantics easier to reason about.
+
+## Current Behavior
+
+- Jobs can be created with a callable.
+- Dependencies can be declared between jobs before execution.
+- A job cannot depend on itself.
+- Job IDs are validated at API boundaries.
+- The job graph becomes immutable after `run()` is called.
+- Execution (`run()` / `wait()`) is not implemented yet.
 
 ## Project Structure
 

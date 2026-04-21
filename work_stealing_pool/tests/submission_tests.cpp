@@ -46,3 +46,21 @@ TEST(WorkStealingPoolSubmission, ContinuesAfterThrowingJob)
 
     EXPECT_EQ(counter.load(std::memory_order_relaxed), 1);
 }
+
+TEST(WorkStealingPoolSubmission, HandlesLargerBatchWithPerWorkerQueues)
+{
+    std::atomic<int> counter{0};
+
+    {
+        WorkStealingPool pool(8);
+
+        for (int i = 0; i < 500; ++i)
+        {
+            pool.submit([&] {
+                counter.fetch_add(1, std::memory_order_relaxed);
+            });
+        }
+    }
+
+    EXPECT_EQ(counter.load(std::memory_order_relaxed), 500);
+}

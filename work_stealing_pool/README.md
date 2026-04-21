@@ -2,17 +2,17 @@
 
 A minimal work-stealing thread pool intended as an alternative execution engine to the existing `thread_pool` project.
 
-**Status:** project skeleton
+**Status:** baseline worker loop and per-worker local queues implemented, stealing not implemented yet
 
 ## Purpose
 
 This project explores a different execution architecture for parallel work scheduling.
 
-Instead of a single shared queue, each worker owns a local deque:
+Instead of a single shared queue, each worker owns a local queue:
 
-- workers pop from their own local queue
-- idle workers attempt to steal work from other workers
-- the system aims to reduce contention and improve load balance
+- workers consume local work first
+- external submissions are distributed across worker queues
+- idle workers will eventually steal from other workers in a later step
 
 ## Intended Scope
 
@@ -20,18 +20,17 @@ Instead of a single shared queue, each worker owns a local deque:
 
 - fixed number of worker threads
 - per-worker local queues
-- stealing from other workers when idle
-- job submission via `submit(std::function<void()>)`
+- external job submission via `submit(std::function<void()>)`
 - clean shutdown in destructor
 
-### Out of scope
+### Out of scope for the current step
 
+- actual stealing
 - priorities
 - futures / return values
 - NUMA-aware scheduling
 - task affinity
 - advanced heuristics
-- lock-free refinement beyond the minimal design
 
 ## Project Structure
 
@@ -48,4 +47,4 @@ cmake --build build
 
 ## Notes
 
-This is a learning-focused implementation. The goal is to understand the mechanics and trade-offs of work stealing, not to build a production scheduler.
+This is still an intermediate step. The current version introduces worker-owned queues and submission distribution, but does not yet perform cross-worker stealing.

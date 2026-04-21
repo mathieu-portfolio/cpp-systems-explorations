@@ -26,7 +26,7 @@ int main()
             });
         }
 
-        log("Submitted 8 jobs to the baseline pool.");
+        log("Submitted 8 jobs across per-worker local queues.");
     }
 
     std::cout << "All jobs completed before destruction.\n";

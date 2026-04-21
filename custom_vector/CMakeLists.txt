@@ -62,6 +62,18 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_SOURCE_DIR}/tests
     )
 
+    add_executable(vector_bench
+        bench/bench.cpp
+    )
+
+    target_link_libraries(vector_bench
+        PRIVATE vector
+    )
+
+    target_include_directories(vector_bench
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+
     include(GoogleTest)
     gtest_discover_tests(vector_tests)
 endif()

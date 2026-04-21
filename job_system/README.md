@@ -1,68 +1,110 @@
-# Thread Pool
+# Job System
 
-A minimal fixed-size thread pool built as a systems programming exercise.
+A minimal batch-oriented job system built on top of the `thread_pool` project.
 
-## Overview
+**Status:** dependency graph, execution path, cycle rejection, and exception containment implemented
 
-This project implements a small thread pool with a fixed number of worker threads and a shared job queue. It is intentionally narrow in scope and designed to make the core concurrency semantics explicit:
+## What is a job system?
 
-- asynchronous job submission
-- worker thread lifecycle
-- ownership transfer of submitted jobs
-- graceful draining shutdown
-- basic correctness under concurrent submission
+A job system turns a **graph of work** into **correct parallel execution**.
 
-The goal is not to compete with production libraries. The goal is to build a small, correct, well-reasoned component that is easy to discuss in a systems interview.
+- A thread pool runs tasks  
+- A job system decides **when** tasks are allowed to run  
 
-## Features
+Example:
 
-- fixed number of worker threads
-- job submission via `submit(std::function<void()>)`
-- internal FIFO job queue
-- worker threads wait efficiently when idle
-- destructor performs graceful shutdown:
-  - stop accepting new work
-  - finish queued work
-  - join all worker threads
+A → B → C  
+A → D  
 
-## Contract
+Execution:
+- A runs first  
+- B and D unlock and run in parallel  
+- C runs after B  
 
-- `ThreadPool(thread_count)` requires `thread_count > 0`; constructing with zero threads throws.
-- `submit(job)` requires a valid callable; submitting an empty job throws.
-- Once shutdown begins, new submissions are rejected and throw.
-- Once a job is accepted, it becomes the pool's responsibility for execution.
-- The destructor returns only after all accepted work has finished and all worker threads have terminated.
+You describe dependencies. The system handles ordering and parallelism.
 
-## Non-Goals
+---
 
-This project intentionally does not include:
+## Purpose
 
-- futures or return values
+This project is the next layer above the thread pool.
+
+The thread pool answers:
+
+- how worker threads execute runnable jobs
+- how work is queued
+- how shutdown is coordinated
+
+The job system answers:
+
+- when a job becomes runnable
+- how dependencies between jobs are represented
+- how completion of one job unlocks another
+- how a batch of work is launched and waited on
+
+---
+
+## Intended Scope
+
+### In scope
+
+- batch-oriented execution model
+- jobs identified through lightweight handles
+- explicit dependency edges between jobs
+- runnable jobs submitted to the thread pool
+- completion tracking
+- `wait()` for a full batch
+- cycle rejection at execution start
+- contained job exceptions
+
+### Out of scope
+
+- futures / return values
+- cancellation
+- priorities
 - work stealing
-- lock-free queues
-- task dependencies
-- dynamic thread scaling
-- advanced scheduling policies
+- dynamic graph mutation during execution
+- lock-free scheduling
+- persistence / serialization
+
+---
+
+## Usage Model
+
+1. create jobs  
+2. add dependencies  
+3. run  
+4. wait  
+
+---
+
+## Current Behavior
+
+- jobs are defined with a callable
+- dependencies are declared before execution
+- the graph becomes immutable at `run()`
+- `run()` validates that the graph is acyclic
+- runnable jobs are submitted automatically
+- completion unlocks dependents
+- `wait()` blocks until all jobs complete
+- empty batches are allowed
+- job exceptions are caught and do not block progress
+
+---
 
 ## Project Structure
 
-```text
-thread_pool/
-├── CMakeLists.txt
-├── README.md
-├── DESIGN.md
-├── include/
-│   └── thread_pool.hpp
-├── src/
-│   └── thread_pool.cpp
-├── demo/
-│   └── demo.cpp
-└── tests/
-    ├── basic_tests.cpp
-    ├── shutdown_tests.cpp
-    ├── stress_tests.cpp
-    └── contract_tests.cpp
-```
+- `job_system` — implementation
+- `demo` — example
+- `tests` — validation
+
+---
+
+## Dependency
+
+Depends on the sibling `thread_pool` project.
+
+---
 
 ## Build
 
@@ -71,42 +113,8 @@ cmake -S . -B build
 cmake --build build
 ```
 
-## Run Demo
+---
 
-```bash
-./build/thread_pool_demo
-```
+## Notes
 
-On Visual Studio generators, run the produced executable from the build output directory.
-
-## Run Tests
-
-```bash
-ctest --test-dir build --output-on-failure
-```
-
-## Example
-
-```cpp
-ThreadPool pool(4);
-
-pool.submit([] {
-    // do work
-});
-
-pool.submit([] {
-    // do more work
-});
-```
-
-## Why This Project Matters
-
-A thread pool is a small but important systems component. Building one forces you to reason about:
-
-- shared mutable state
-- synchronization boundaries
-- thread ownership and lifetime
-- API contracts under concurrency
-- shutdown semantics
-
-These are foundational topics for larger systems such as job systems, async runtimes, servers, and game engines.
+Focus is on clarity and correctness.

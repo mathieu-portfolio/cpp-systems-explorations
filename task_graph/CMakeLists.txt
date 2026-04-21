@@ -77,3 +77,18 @@ if(BUILD_TESTING)
     include(GoogleTest)
     gtest_discover_tests(task_graph_tests)
 endif()
+
+# -----------------------------
+# Benchmark
+# -----------------------------
+add_executable(task_graph_bench
+    bench/bench.cpp
+)
+
+target_link_libraries(task_graph_bench
+    PRIVATE task_graph
+)
+
+target_include_directories(task_graph_bench
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
+)

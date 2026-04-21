@@ -22,8 +22,13 @@ The job system is a scheduling layer built on top of the thread pool. It should 
 Each job node contains:
 
 - a callable
-- a dependency counter (`remaining_dependencies`)
+- an atomic dependency counter (`remaining_dependencies`)
 - a list of dependent jobs
+
+The job system also maintains:
+
+- an atomic unfinished-job counter for batch completion
+- a mutex and condition variable for `wait()`
 
 Dependencies are represented as:
 
@@ -40,20 +45,36 @@ Dependencies are represented as:
 - A job cannot depend on itself.
 - Job IDs must refer to existing jobs.
 - The job graph is immutable after `run()` is called.
+- A job is submitted to the thread pool only when its dependency count is zero.
+- A dependent job becomes runnable exactly on the transition from `1 -> 0`.
+- The unfinished-job counter is decremented exactly once per completed job.
+- `wait()` returns only when the unfinished-job counter reaches zero.
 
-## First Semantic Invariants
+## Execution Model
 
-- A job becomes runnable exactly when all of its dependencies are complete.
-- A job is never executed before its prerequisites complete.
-- Completing a job updates each dependent exactly once.
-- `wait()` returns only after all jobs accepted into the current batch have completed.
+### `run()`
+
+- marks the batch as started
+- initializes the unfinished-job counter to the number of jobs in the batch
+- scans the graph for jobs whose dependency count is zero
+- submits those runnable jobs to the thread pool
+
+### Job completion
+
+When a job finishes:
+
+- each dependent's dependency counter is decremented
+- if a dependent transitions from `1 -> 0`, it is submitted
+- the unfinished-job counter is decremented
+- if the batch reaches zero unfinished jobs, `wait()` is notified
 
 ## Not Implemented Yet
 
-- Runnable job discovery
-- Submission to the thread pool
-- Completion propagation
-- `wait()` semantics
+- Cycle detection
+- Per-job waiting
+- Futures / return values
+- Incremental graph mutation after execution starts
+- Advanced scheduling policies
 
 ## Open Design Questions
 

@@ -1,8 +1,11 @@
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <vector>
 
 class ThreadPool;
@@ -30,17 +33,54 @@ public:
     void wait();
 
 private:
-    struct JobNode
-    {
+    struct JobNode {
         std::function<void()> fn;
-        std::size_t remaining_dependencies = 0;
+        std::atomic<std::size_t> remaining_dependencies{0};
         std::vector<JobId> dependents;
+
+        JobNode() = default;
+
+        explicit JobNode(std::function<void()> f)
+            : fn(std::move(f)), remaining_dependencies(0), dependents()
+        {
+        }
+
+        JobNode(const JobNode&) = delete;
+        JobNode& operator=(const JobNode&) = delete;
+
+        JobNode(JobNode&& other) noexcept
+            : fn(std::move(other.fn)),
+            remaining_dependencies(other.remaining_dependencies.load(std::memory_order_relaxed)),
+            dependents(std::move(other.dependents))
+        {
+        }
+
+        JobNode& operator=(JobNode&& other) noexcept
+        {
+            if (this != &other)
+            {
+                fn = std::move(other.fn);
+                remaining_dependencies.store(
+                    other.remaining_dependencies.load(std::memory_order_relaxed),
+                    std::memory_order_relaxed);
+                dependents = std::move(other.dependents);
+            }
+
+            return *this;
+        }
     };
 
     JobNode& get_job(JobId id);
     const JobNode& get_job(JobId id) const;
 
+    void schedule_job(JobId id);
+    void complete_job(JobId id);
+
     std::vector<JobNode> jobs_;
     ThreadPool* pool_ = nullptr;
     bool started_ = false;
+
+    std::atomic<std::size_t> unfinished_jobs_{0};
+    std::mutex wait_mutex_;
+    std::condition_variable wait_cv_;
 };

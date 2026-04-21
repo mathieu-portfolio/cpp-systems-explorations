@@ -20,11 +20,19 @@ TEST(JobSystemContract, RejectsCreatingJobsAfterRunStarts)
 {
     JobSystem jobs(2);
 
-    EXPECT_THROW(jobs.run(), std::logic_error);
+    jobs.run();
 
     EXPECT_THROW(
         {
             jobs.create_job([] {});
         },
         std::logic_error);
+}
+
+TEST(JobSystemContract, RejectsRunMoreThanOnce)
+{
+    JobSystem jobs(2);
+
+    jobs.run();
+    EXPECT_THROW(jobs.run(), std::logic_error);
 }

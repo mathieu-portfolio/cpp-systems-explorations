@@ -65,6 +65,18 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_SOURCE_DIR}/tests
     )
 
+    add_executable(thread_pool_bench
+        bench/bench.cpp
+    )
+
+    target_link_libraries(thread_pool_bench
+        PRIVATE thread_pool
+    )
+
+    target_include_directories(thread_pool_bench
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+
     include(GoogleTest)
     gtest_discover_tests(thread_pool_tests)
 endif()

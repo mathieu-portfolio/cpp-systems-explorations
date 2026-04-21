@@ -47,3 +47,18 @@ TEST(TaskGraphContract, RejectsRunMoreThanOnce)
     graph.run();
     EXPECT_THROW(graph.run(), std::logic_error);
 }
+
+TEST(TaskGraphContract, FailedRunOnCycleDoesNotFreezeGraphMutation)
+{
+    TaskGraph graph(2);
+
+    const TaskId a = graph.add_task([] {});
+    const TaskId b = graph.add_task([] {});
+
+    graph.add_edge(a, b);
+    graph.add_edge(b, a);
+
+    EXPECT_THROW(graph.run(), std::logic_error);
+    EXPECT_NO_THROW(graph.add_task([] {}));
+    EXPECT_NO_THROW(graph.add_named_task("extra", [] {}));
+}

@@ -59,6 +59,7 @@ if(BUILD_TESTING)
         tests/contract_tests.cpp
         tests/validation_tests.cpp
         tests/name_tests.cpp
+        tests/exception_tests.cpp
     )
 
     target_link_libraries(task_graph_tests

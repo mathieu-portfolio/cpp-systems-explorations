@@ -71,7 +71,9 @@ The task graph answers:
 ## Current Behavior
 
 - Tasks can be added with or without a name.
-- Edges can be declared before execution.
+- Named tasks must have unique, non-empty names.
+- Tasks can be retrieved by name for graph construction.
+- Edges can be declared using task IDs or task names.
 - A task cannot depend on itself.
 - Duplicate edges are rejected.
 - Task IDs are validated at API boundaries.

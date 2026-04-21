@@ -1,5 +1,6 @@
 #include "task_graph.hpp"
 #include "job_system.hpp"
+
 #include <stdexcept>
 #include <vector>
 #include <deque>
@@ -16,6 +17,13 @@ const TaskGraph::TaskNode& TaskGraph::get_task(TaskId id) const {
     return tasks_[id.value];
 }
 
+TaskId TaskGraph::get_task_id(const std::string& name) const {
+    auto it = name_to_id_.find(name);
+    if (it == name_to_id_.end())
+        throw std::out_of_range("Unknown task name: " + name);
+    return it->second;
+}
+
 TaskId TaskGraph::add_task(std::function<void()> fn) {
     if (!fn) throw std::invalid_argument("invalid fn");
     if (started_) throw std::logic_error("after run");
@@ -26,13 +34,19 @@ TaskId TaskGraph::add_task(std::function<void()> fn) {
 TaskId TaskGraph::add_named_task(std::string n, std::function<void()> fn) {
     if (!fn) throw std::invalid_argument("invalid fn");
     if (started_) throw std::logic_error("after run");
-    tasks_.push_back({std::move(n), std::move(fn), {}});
-    return TaskId{(uint32_t)tasks_.size()-1};
+    if (n.empty()) throw std::invalid_argument("empty name");
+    if (name_to_id_.count(n)) throw std::logic_error("duplicate name");
+
+    TaskId id{(uint32_t)tasks_.size()};
+    tasks_.push_back({n, std::move(fn), {}});
+    name_to_id_[n] = id;
+    return id;
 }
 
 void TaskGraph::add_edge(TaskId from, TaskId to) {
     if (started_) throw std::logic_error("after run");
     if (from.value == to.value) throw std::invalid_argument("self edge");
+
     auto& src = get_task(from);
     get_task(to);
 
@@ -41,6 +55,10 @@ void TaskGraph::add_edge(TaskId from, TaskId to) {
             throw std::logic_error("duplicate edge");
 
     src.outgoing.push_back(to);
+}
+
+void TaskGraph::add_edge(const std::string& from, const std::string& to) {
+    add_edge(get_task_id(from), get_task_id(to));
 }
 
 void TaskGraph::validate_acyclic() const {

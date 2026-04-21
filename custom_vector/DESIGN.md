@@ -12,16 +12,12 @@
 - copy and move semantics
 - basic iterator support (begin/end)
 
----
-
 ## Invariants
 
 - 0 <= size_ <= capacity_
 - data_ == nullptr iff capacity_ == 0
 - [0, size_) constructed
 - [size_, capacity_) raw storage
-
----
 
 ## Reallocation
 
@@ -31,8 +27,6 @@
 4. free old buffer
 
 Relocation uses move semantics.
-
----
 
 ## Iteration Model
 
@@ -46,8 +40,6 @@ Supports:
 - manual iteration
 - range-based for
 
----
-
 ## Invalidation Rules
 
 The following operations invalidate all iterators, pointers, and references:
@@ -57,8 +49,6 @@ The following operations invalidate all iterators, pointers, and references:
 - clear()
 
 Operations that do not reallocate preserve iterator validity.
-
----
 
 ## Design Philosophy
 

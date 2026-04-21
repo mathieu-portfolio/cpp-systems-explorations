@@ -1,7 +1,5 @@
 # Design Notes
 
----
-
 ## Purpose & Context
 
 This project is a learning-focused implementation of arena-style allocators in C++.
@@ -16,8 +14,6 @@ The goal is to strengthen fundamentals in:
 
 The project is not intended to become a general-purpose allocator.  
 It is designed to explore allocator behavior in a controlled and understandable way.
-
----
 
 ## Core Model
 
@@ -38,8 +34,6 @@ Allocation is implemented as:
 1. compute aligned address from current offset
 2. return pointer
 3. advance offset
-
----
 
 ## Alignment Strategy
 
@@ -64,8 +58,6 @@ After padding:
 ```
 
 This lets the allocator satisfy supported alignments without requiring per-allocation system calls.
-
----
 
 ## Marker / Rewind Model
 
@@ -102,8 +94,6 @@ Properties:
 - memory is not cleared, only made reusable
 - no destructors are called
 
----
-
 ## Invariants
 
 The allocator relies on the following invariants:
@@ -115,8 +105,6 @@ The allocator relies on the following invariants:
 - an active scoped rewind guard owns a valid rewind point for the current arena state
 
 Correctness of allocation depends on maintaining these invariants.
-
----
 
 ## Error Model
 
@@ -141,8 +129,6 @@ These are contract violations:
 
 This keeps the allocator minimal and fast.
 
----
-
 ## Lifetime Model
 
 The arena provides raw storage only:
@@ -157,8 +143,6 @@ Important implications:
 > `rewind()` and `reset()` invalidate storage without calling destructors.
 
 > An active scoped rewind guard also participates in lifetime management of arena state: destroying it rewinds storage unless it has been dismissed.
-
----
 
 ## Design Trade-offs
 
@@ -177,8 +161,6 @@ Important implications:
 - not thread-safe
 - not suitable for automatic destruction of non-trivial objects
 
----
-
 ## Current Design Direction
 
 The implementation intentionally favors:
@@ -193,8 +175,6 @@ It is designed as a scratch allocator for:
 - temporary computation buffers
 - short-lived working data
 
----
-
 ## Target Feature Set
 
 Possible extensions include:
@@ -204,8 +184,6 @@ Possible extensions include:
 
 New features should only be added when they deepen understanding of memory behavior, lifetime management, or allocator trade-offs.
 
----
-
 ## Non-Goals
 
 To preserve clarity, the project intentionally avoids:
@@ -214,8 +192,6 @@ To preserve clarity, the project intentionally avoids:
 - automatic destructor tracking
 - thread safety mechanisms
 - advanced allocation strategies such as pool or freelist allocators
-
----
 
 ## Design Philosophy
 

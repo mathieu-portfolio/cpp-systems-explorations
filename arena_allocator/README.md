@@ -2,8 +2,6 @@
 
 **Version: V3 – scoped rewind guard**
 
----
-
 ## Problem
 
 Many systems need to create large amounts of **temporary data**:
@@ -24,8 +22,6 @@ Using general-purpose allocation (`new`, `malloc`, STL containers) can lead to:
 - fragmented memory
 - more complex ownership and lifetime management
 
----
-
 ## Solution
 
 An **arena allocator** groups allocations together and frees them in one step.
@@ -37,8 +33,6 @@ Instead of managing each allocation individually:
 - reclaim memory all at once with `reset()`, `rewind()`, or a scoped rewind guard
 
 > **Allocate many things, free them all at once.**
-
----
 
 ## How It Works
 
@@ -130,8 +124,6 @@ After guard destruction:
 - `dismiss()` disables the automatic rewind
 - nested scoped rewinds are supported
 
----
-
 ## Real Usage Pattern
 
 Arena allocators are useful when **many allocations share the same lifetime**.
@@ -162,8 +154,6 @@ Typical pattern:
 - use that data to compute a result
 - reclaim all temporary memory in one step
 
----
-
 ## Where This Is Used
 
 Arena-style allocation is widely used in:
@@ -177,8 +167,6 @@ Arena-style allocation is widely used in:
 These systems all share the same pattern:
 
 > Many allocations are created and discarded together.
-
----
 
 ## This Project
 
@@ -195,8 +183,6 @@ This implementation provides:
 
 It is designed as a **scratch allocator** for temporary working data.
 
----
-
 ## API Contract
 
 - `alignment` must be non-zero
@@ -208,8 +194,6 @@ It is designed as a **scratch allocator** for temporary working data.
 - `reset()` invalidates previously created markers and active scoped rewind guards
 - destroying an active scoped rewind guard rewinds the arena to its captured marker
 - `dismiss()` disables automatic rewind
-
----
 
 ## Example Usage
 
@@ -256,15 +240,11 @@ void* buffer = arena.allocate(...);
 scope.dismiss();
 ```
 
----
-
 ## Project Structure
 
 - `arena` (library): allocator implementation
 - `arena_tests`: GoogleTest suite (allocation, invariants, rewind, contract violations)
 - `arena_demo`: practical usage example
-
----
 
 ## Testing
 
@@ -284,8 +264,6 @@ Run tests with:
 ctest --output-on-failure
 ```
 
----
-
 ## Notes
 
 - Memory returned is raw storage; object lifetime is managed by the caller
@@ -293,7 +271,5 @@ ctest --output-on-failure
 - Invalid usage is treated as a programmer error; contract violations are reported and terminate execution
 - Active scoped rewind guards must not be invalidated by `reset()` or incompatible rewinds
 - Not thread-safe
-
----
 
 For more details on design decisions, implementation direction, and project goals, see `DESIGN.md`.

@@ -23,8 +23,6 @@ Execution:
 
 You describe dependencies. The system handles ordering and parallelism.
 
----
-
 ## Purpose
 
 This project is the next layer above the thread pool.
@@ -41,8 +39,6 @@ The job system answers:
 - how dependencies between jobs are represented
 - how completion of one job unlocks another
 - how a batch of work is launched and waited on
-
----
 
 ## Intended Scope
 
@@ -67,16 +63,12 @@ The job system answers:
 - lock-free scheduling
 - persistence / serialization
 
----
-
 ## Usage Model
 
 1. create jobs  
 2. add dependencies  
 3. run  
 4. wait  
-
----
 
 ## Current Behavior
 
@@ -90,21 +82,15 @@ The job system answers:
 - empty batches are allowed
 - job exceptions are caught and do not block progress
 
----
-
 ## Project Structure
 
 - `job_system` — implementation
 - `demo` — example
 - `tests` — validation
 
----
-
 ## Dependency
 
 Depends on the sibling `thread_pool` project.
-
----
 
 ## Build
 
@@ -112,8 +98,6 @@ Depends on the sibling `thread_pool` project.
 cmake -S . -B build
 cmake --build build
 ```
-
----
 
 ## Notes
 

@@ -6,8 +6,6 @@ Internal design document for the thread pool project.
 
 This document captures the intended semantics, invariants, and end goals of the system. It is meant to define what the pool must guarantee, not just describe how the current code happens to work.
 
----
-
 ## Scope
 
 ### In Scope
@@ -29,8 +27,6 @@ This document captures the intended semantics, invariants, and end goals of the 
 - priorities
 - task dependencies
 
----
-
 ## Core Semantics
 
 - The pool owns a fixed set of worker threads for its entire lifetime.
@@ -38,8 +34,6 @@ This document captures the intended semantics, invariants, and end goals of the 
 - Successfully accepted jobs are the responsibility of the pool until completion.
 - Shutdown is draining, not abandoning: accepted work completes before the pool is destroyed.
 - The pool exposes a small contract surface and favors explicit failure over ambiguous behavior.
-
----
 
 ## Semantic Invariants
 
@@ -56,8 +50,6 @@ This document captures the intended semantics, invariants, and end goals of the 
 - Pool behavior is determined only by synchronized shared state: decisions about accepting work, waiting, executing, and terminating are based on coherent state transitions.
 
 - Idle workers wait efficiently for meaningful state changes: workers block when no work is available and wake only when work arrives or shutdown progresses.
-
----
 
 ## End Goals
 
@@ -81,8 +73,6 @@ This document captures the intended semantics, invariants, and end goals of the 
 
 - Serve as a foundation for more advanced execution models, while keeping the current semantics stable and well-defined.
 
----
-
 ## Public Contract
 
 ### Construction
@@ -101,8 +91,6 @@ This document captures the intended semantics, invariants, and end goals of the 
 - Shutdown begins when the pool stops accepting new work.
 - Once shutdown begins, previously accepted jobs remain executable.
 - Destruction returns only after accepted work has finished and workers have terminated.
-
----
 
 ## Runtime Checks vs Semantic Guarantees
 
@@ -127,15 +115,11 @@ This document captures the intended semantics, invariants, and end goals of the 
 - stress behavior with many small jobs
 - contract rejection for invalid construction and invalid submission
 
----
-
 ## Open Questions
 
 - Exception policy for jobs: whether job exceptions are forbidden by contract or must be caught internally.
 - Exact long-term state model: whether a single shutdown flag remains sufficient or whether explicit named states become clearer.
 - Whether additional externally visible shutdown operations are useful, or whether destructor-driven shutdown should remain the only mechanism.
-
----
 
 ## Design Philosophy
 

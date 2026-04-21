@@ -16,8 +16,6 @@ This project implements a small thread pool with a fixed number of worker thread
 
 The goal is not to compete with production libraries. The goal is to build a small, correct, well-reasoned component that is easy to discuss in a systems interview.
 
----
-
 ## Features
 
 - fixed number of worker threads
@@ -29,8 +27,6 @@ The goal is not to compete with production libraries. The goal is to build a sma
   - finish queued work
   - join all worker threads
 
----
-
 ## Contract
 
 - `ThreadPool(thread_count)` requires `thread_count > 0`; constructing with zero threads throws.
@@ -38,8 +34,6 @@ The goal is not to compete with production libraries. The goal is to build a sma
 - Once shutdown begins, new submissions are rejected and throw.
 - Once a job is accepted, it becomes the pool's responsibility for execution.
 - The destructor returns only after all accepted work has finished and all worker threads have terminated.
-
----
 
 ## Non-Goals
 
@@ -52,15 +46,11 @@ This project intentionally does not include:
 - dynamic thread scaling
 - advanced scheduling policies
 
----
-
 ## Project Structure
 
 - `thread_pool` — library implementation (public API and core logic)
 - `demo` — simple example showing how to use the thread pool
 - `tests` — validation of behavior, shutdown semantics, concurrency, and contracts
-
----
 
 ## Build
 
@@ -68,8 +58,6 @@ This project intentionally does not include:
 cmake -S . -B build
 cmake --build build
 ```
-
----
 
 ## Run Demo
 
@@ -79,15 +67,11 @@ cmake --build build
 
 On Visual Studio generators, run the produced executable from the build output directory.
 
----
-
 ## Run Tests
 
 ```bash
 ctest --test-dir build --output-on-failure
 ```
-
----
 
 ## Example
 
@@ -102,8 +86,6 @@ pool.submit([] {
     // do more work
 });
 ```
-
----
 
 ## Why This Project Matters
 

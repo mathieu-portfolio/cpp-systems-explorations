@@ -17,8 +17,6 @@ While `std::vector` solves these problems, it hides the underlying mechanics.
 
 This project aims to make those mechanics explicit.
 
----
-
 ## Solution
 
 This project implements a minimal `std::vector`-like container with:
@@ -28,8 +26,6 @@ This project implements a minimal `std::vector`-like container with:
 - explicit object lifetime control
 - predictable growth strategy
 - basic iterator support
-
----
 
 ## Usage
 
@@ -61,16 +57,12 @@ v[0] = 42;
 v.reserve(10);
 ```
 
----
-
 ## Scope
 
 - correctness
 - memory model understanding
 - ownership and lifetime
 - performance fundamentals
-
----
 
 ## Limitations
 
@@ -80,15 +72,11 @@ v.reserve(10);
 - no advanced iterator model
 - single-threaded
 
----
-
 ## Project Structure
 
 - `vector` — implementation
 - `demo` — usage examples
 - `tests` — unit tests
-
----
 
 ## Notes
 

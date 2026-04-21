@@ -14,8 +14,6 @@ The goal is not to make broad allocator claims. The goal is to understand the co
 - alignment sensitivity
 - fixed-capacity arena behavior versus per-allocation heap traffic
 
----
-
 ## What This Benchmark Measures
 
 The benchmark compares two allocation strategies:
@@ -36,8 +34,6 @@ It currently evaluates these scenarios:
   - repeatedly take a mark, allocate a batch, then rewind to the mark
   - compare against allocating then freeing the same batch on the heap
 
----
-
 ## Allocation Shapes
 
 The first version supports:
@@ -47,8 +43,6 @@ The first version supports:
 - varying operation count
 
 This is enough to study how the arena behaves under common small-allocation patterns.
-
----
 
 ## Reported Metrics
 
@@ -64,8 +58,6 @@ For each run, the benchmark reports:
 - average time in milliseconds
 - throughput in operations per second
 - speedup relative to heap allocation
-
----
 
 ## Practical Usage
 
@@ -112,8 +104,6 @@ python bench/plot.py --csv bench/results/results.csv --out-dir bench/results
 - `--csv-out` = optional path for CSV output
 - `--help` = print usage information
 
----
-
 ## Preset Sweeps
 
 The current preset sweeps are:
@@ -137,8 +127,6 @@ The current preset sweeps are:
 - `all`
   - runs all preset families
 
----
-
 ## Typical Questions
 
 This benchmark should help answer:
@@ -147,8 +135,6 @@ This benchmark should help answer:
 - How much does alignment affect arena allocation cost?
 - How cheap is `reset()` compared to freeing many heap blocks?
 - How useful is mark/rewind for nested temporary allocation patterns?
-
----
 
 ## Notes
 

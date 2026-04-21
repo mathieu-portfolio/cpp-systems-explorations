@@ -8,8 +8,6 @@ This subproject measures the behavior of the minimal thread pool under controlle
 
 The goal is not to produce production-grade performance claims. The goal is to understand the cost model of the current design and evaluate how it behaves as workload shape and contention change.
 
----
-
 ## What This Benchmark Measures
 
 The current benchmark harness compares:
@@ -24,8 +22,6 @@ It is designed to evaluate the impact of:
 - number of concurrent submitter threads
 - job granularity
 - workload type
-
----
 
 ## Initial Workloads
 
@@ -47,8 +43,6 @@ Artificial blocking work implemented with `sleep_for`.
 Use this only as an illustration of overlap and shutdown behavior.
 It is less useful than CPU-bound work for real performance analysis.
 
----
-
 ## Reported Metrics
 
 For each run, the benchmark reports:
@@ -62,8 +56,6 @@ For each run, the benchmark reports:
 - total wall-clock time in milliseconds
 - throughput in jobs per second
 - speedup versus direct execution
-
----
 
 ## Practical Usage
 
@@ -111,8 +103,6 @@ python bench/plot.py --csv bench/results/results.csv --out-dir bench/results
 - `--csv-out` = optional path for CSV output
 - `--help` = print usage information
 
----
-
 ## Preset Sweeps
 
 The current preset sweeps are:
@@ -138,8 +128,6 @@ The current preset sweeps are:
 - `all`
   - runs all preset families
 
----
-
 ## Typical Questions
 
 This benchmark should help answer:
@@ -148,8 +136,6 @@ This benchmark should help answer:
 - At what job size does the pool become worthwhile?
 - How much multi-producer contention hurts submission throughput?
 - When direct execution is faster than pooled execution?
-
----
 
 ## Notes
 

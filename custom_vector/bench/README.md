@@ -14,8 +14,6 @@ The goal is not to claim production-grade performance. The goal is to understand
 - move cost
 - element type sensitivity
 
----
-
 ## What This Benchmark Measures
 
 The benchmark compares two containers:
@@ -37,8 +35,6 @@ It currently evaluates these scenarios:
 - `move`
   - move a populated vector of size `N`
 
----
-
 ## Element Types
 
 The first version supports:
@@ -48,8 +44,6 @@ The first version supports:
 - `heavy`
 
 The `heavy` type is an intentionally larger value type used to make copy and move costs more visible.
-
----
 
 ## Reported Metrics
 
@@ -64,8 +58,6 @@ For each run, the benchmark reports:
 - average time in milliseconds
 - throughput in operations per second
 - speedup relative to `std::vector`
-
----
 
 ## Practical Usage
 
@@ -111,8 +103,6 @@ python bench/plot.py --csv bench/results/results.csv --out-dir bench/results
 - `--csv-out` = optional path for CSV output
 - `--help` = print usage information
 
----
-
 ## Preset Sweeps
 
 The current preset sweeps are:
@@ -135,8 +125,6 @@ The current preset sweeps are:
 - `all`
   - runs all preset families
 
----
-
 ## Typical Questions
 
 This benchmark should help answer:
@@ -145,8 +133,6 @@ This benchmark should help answer:
 - How far is the custom vector from `std::vector` on the same workload?
 - How expensive are copies compared to moves?
 - How much does the element type affect performance?
-
----
 
 ## Notes
 

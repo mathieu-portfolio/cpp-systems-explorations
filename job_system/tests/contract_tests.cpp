@@ -36,3 +36,17 @@ TEST(JobSystemContract, RejectsRunMoreThanOnce)
     jobs.run();
     EXPECT_THROW(jobs.run(), std::logic_error);
 }
+
+TEST(JobSystemContract, FailedRunOnCycleDoesNotFreezeGraphMutation)
+{
+    JobSystem jobs(2);
+
+    const JobId a = jobs.create_job([] {});
+    const JobId b = jobs.create_job([] {});
+
+    jobs.add_dependency(a, b);
+    jobs.add_dependency(b, a);
+
+    EXPECT_THROW(jobs.run(), std::logic_error);
+    EXPECT_NO_THROW(jobs.create_job([] {}));
+}

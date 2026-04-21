@@ -33,7 +33,8 @@ public:
     void wait();
 
 private:
-    struct JobNode {
+    struct JobNode
+    {
         std::function<void()> fn;
         std::atomic<std::size_t> remaining_dependencies{0};
         std::vector<JobId> dependents;
@@ -41,7 +42,7 @@ private:
         JobNode() = default;
 
         explicit JobNode(std::function<void()> f)
-            : fn(std::move(f)), remaining_dependencies(0), dependents()
+            : fn(std::move(f))
         {
         }
 
@@ -50,8 +51,8 @@ private:
 
         JobNode(JobNode&& other) noexcept
             : fn(std::move(other.fn)),
-            remaining_dependencies(other.remaining_dependencies.load(std::memory_order_relaxed)),
-            dependents(std::move(other.dependents))
+              remaining_dependencies(other.remaining_dependencies.load(std::memory_order_relaxed)),
+              dependents(std::move(other.dependents))
         {
         }
 
@@ -73,6 +74,7 @@ private:
     JobNode& get_job(JobId id);
     const JobNode& get_job(JobId id) const;
 
+    void validate_acyclic() const;
     void schedule_job(JobId id);
     void complete_job(JobId id);
 

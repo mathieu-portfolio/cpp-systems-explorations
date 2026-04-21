@@ -14,7 +14,7 @@ The job system is a scheduling layer built on top of the thread pool. It should 
 - The job system is the dependency and scheduling layer.
 - Jobs are created before execution begins.
 - Dependencies are declared before execution begins.
-- `run()` launches the current batch.
+- `run()` validates and launches the current batch.
 - `wait()` blocks until the batch completes.
 
 ## Current Internal Model
@@ -45,6 +45,7 @@ Dependencies are represented as:
 - A job cannot depend on itself.
 - Job IDs must refer to existing jobs.
 - The job graph is immutable after `run()` is called.
+- The graph must be acyclic when `run()` starts.
 - A job is submitted to the thread pool only when its dependency count is zero.
 - A dependent job becomes runnable exactly on the transition from `1 -> 0`.
 - The unfinished-job counter is decremented exactly once per completed job.
@@ -54,10 +55,22 @@ Dependencies are represented as:
 
 ### `run()`
 
+- validates that the graph is acyclic
 - marks the batch as started
 - initializes the unfinished-job counter to the number of jobs in the batch
 - scans the graph for jobs whose dependency count is zero
 - submits those runnable jobs to the thread pool
+
+### Cycle validation
+
+`run()` uses a Kahn-style topological validation pass:
+
+- copy the current dependency counts into a temporary indegree array
+- enqueue every job whose indegree is zero
+- repeatedly remove runnable jobs and decrement their dependents
+- if the number of visited jobs is smaller than the batch size, the graph contains a cycle
+
+If a cycle is detected, `run()` throws and the batch does not start.
 
 ### Job completion
 
@@ -70,7 +83,6 @@ When a job finishes:
 
 ## Not Implemented Yet
 
-- Cycle detection
 - Per-job waiting
 - Futures / return values
 - Incremental graph mutation after execution starts
@@ -82,7 +94,7 @@ When a job finishes:
 - What states should a job have internally beyond dependency count?
 - What contract violations should be rejected at API boundaries?
 - What job exception policy should the system adopt?
-- What graph shapes should be supported in v1, and how should cycles be handled?
+- What graph shapes should be supported in v1 beyond acyclic dependency DAGs?
 
 ## End Goals
 

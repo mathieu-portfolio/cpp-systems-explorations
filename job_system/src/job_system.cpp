@@ -2,9 +2,11 @@
 
 #include "thread_pool.hpp"
 
+#include <deque>
 #include <memory>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 JobSystem::JobSystem(std::size_t worker_count)
     : pool_(new ThreadPool(worker_count))
@@ -71,6 +73,57 @@ void JobSystem::add_dependency(JobId job, JobId depends_on)
     prerequisite.dependents.push_back(job);
 }
 
+void JobSystem::validate_acyclic() const
+{
+    std::vector<std::size_t> indegrees;
+    indegrees.reserve(jobs_.size());
+
+    for (const JobNode& job : jobs_)
+    {
+        indegrees.push_back(job.remaining_dependencies.load(std::memory_order_relaxed));
+    }
+
+    std::deque<JobId> ready;
+    for (std::size_t i = 0; i < indegrees.size(); ++i)
+    {
+        if (indegrees[i] == 0)
+        {
+            ready.push_back(JobId{static_cast<std::uint32_t>(i)});
+        }
+    }
+
+    std::size_t visited = 0;
+
+    while (!ready.empty())
+    {
+        const JobId current = ready.front();
+        ready.pop_front();
+        ++visited;
+
+        const JobNode& node = jobs_[static_cast<std::size_t>(current.value)];
+        for (JobId dependent_id : node.dependents)
+        {
+            std::size_t& indegree = indegrees[static_cast<std::size_t>(dependent_id.value)];
+
+            if (indegree == 0)
+            {
+                throw std::logic_error("Dependency validation encountered an invalid indegree transition");
+            }
+
+            indegree -= 1;
+            if (indegree == 0)
+            {
+                ready.push_back(dependent_id);
+            }
+        }
+    }
+
+    if (visited != jobs_.size())
+    {
+        throw std::logic_error("run() rejected a cyclic dependency graph");
+    }
+}
+
 void JobSystem::schedule_job(JobId id)
 {
     pool_->submit([this, id] {
@@ -123,6 +176,8 @@ void JobSystem::run()
     {
         throw std::logic_error("run() cannot be called more than once");
     }
+
+    validate_acyclic();
 
     started_ = true;
     unfinished_jobs_.store(jobs_.size(), std::memory_order_release);

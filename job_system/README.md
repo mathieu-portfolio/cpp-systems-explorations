@@ -2,7 +2,7 @@
 
 A minimal batch-oriented job system built on top of the `thread_pool` project.
 
-**Status:** dependency graph and first execution path implemented
+**Status:** dependency graph, execution path, and cycle rejection implemented
 
 ## Purpose
 
@@ -33,6 +33,7 @@ The goal is to build a small, well-reasoned scheduler with explicit dependency s
 - runnable jobs submitted to the thread pool
 - completion tracking
 - `wait()` for a full batch
+- cycle rejection at execution start
 
 ### Out of scope
 
@@ -62,11 +63,13 @@ This keeps the lifecycle simple and makes the semantics easier to reason about.
 - A job cannot depend on itself.
 - Job IDs are validated at API boundaries.
 - The job graph becomes immutable after `run()` is called.
+- `run()` validates that the graph is acyclic before launching work.
 - `run()` submits all initially runnable jobs to the thread pool.
 - Completing a job decrements the dependency count of its dependents.
 - A dependent job is submitted when its remaining dependency count reaches zero.
 - `wait()` returns when all jobs in the batch have completed.
 - Empty batches are allowed.
+- Cyclic graphs are rejected by `run()`.
 
 ## Project Structure
 

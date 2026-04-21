@@ -115,3 +115,31 @@ TEST(JobSystemDependencies, FanInDependencyRunsOnlyAfterAllPrerequisites)
 
     EXPECT_EQ(observed.load(std::memory_order_acquire), 2);
 }
+
+TEST(JobSystemDependencies, RejectsTwoNodeCycleAtRun)
+{
+    JobSystem jobs(2);
+
+    const JobId a = jobs.create_job([] {});
+    const JobId b = jobs.create_job([] {});
+
+    jobs.add_dependency(a, b);
+    jobs.add_dependency(b, a);
+
+    EXPECT_THROW(jobs.run(), std::logic_error);
+}
+
+TEST(JobSystemDependencies, RejectsLongerCycleAtRun)
+{
+    JobSystem jobs(2);
+
+    const JobId a = jobs.create_job([] {});
+    const JobId b = jobs.create_job([] {});
+    const JobId c = jobs.create_job([] {});
+
+    jobs.add_dependency(a, c);
+    jobs.add_dependency(b, a);
+    jobs.add_dependency(c, b);
+
+    EXPECT_THROW(jobs.run(), std::logic_error);
+}

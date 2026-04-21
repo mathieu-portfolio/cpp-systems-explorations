@@ -76,3 +76,18 @@ if(BUILD_TESTING)
     include(GoogleTest)
     gtest_discover_tests(job_system_tests)
 endif()
+
+# -----------------------------
+# Benchmark
+# -----------------------------
+add_executable(job_system_bench
+    bench/bench.cpp
+)
+
+target_link_libraries(job_system_bench
+    PRIVATE job_system
+)
+
+target_include_directories(job_system_bench
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
+)

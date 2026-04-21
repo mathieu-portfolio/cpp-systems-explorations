@@ -128,7 +128,18 @@ void JobSystem::schedule_job(JobId id)
 {
     pool_->submit([this, id] {
         JobNode& job = get_job(id);
-        job.fn();
+
+        try
+        {
+            job.fn();
+        }
+        catch (...)
+        {
+            // Job exceptions are contained within the job system.
+            // A throwing job is still treated as completed so that
+            // dependents can be unlocked and wait() can make progress.
+        }
+
         complete_job(id);
     });
 }

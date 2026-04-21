@@ -58,6 +58,7 @@ if(BUILD_TESTING)
         tests/dependency_tests.cpp
         tests/wait_tests.cpp
         tests/contract_tests.cpp
+        tests/exception_tests.cpp
     )
 
     target_link_libraries(job_system_tests

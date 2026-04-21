@@ -2,7 +2,7 @@
 
 A minimal batch-oriented job system built on top of the `thread_pool` project.
 
-**Status:** dependency graph, execution path, and cycle rejection implemented
+**Status:** dependency graph, execution path, cycle rejection, and exception containment implemented
 
 ## Purpose
 
@@ -34,6 +34,7 @@ The goal is to build a small, well-reasoned scheduler with explicit dependency s
 - completion tracking
 - `wait()` for a full batch
 - cycle rejection at execution start
+- contained job exceptions
 
 ### Out of scope
 
@@ -70,12 +71,13 @@ This keeps the lifecycle simple and makes the semantics easier to reason about.
 - `wait()` returns when all jobs in the batch have completed.
 - Empty batches are allowed.
 - Cyclic graphs are rejected by `run()`.
+- Job exceptions are caught internally; a throwing job is still treated as completed for dependency unlocking and batch completion.
 
 ## Project Structure
 
 - `job_system` — library implementation (public API and scheduling logic)
 - `demo` — simple example showing how to build and run a small job graph
-- `tests` — validation of basic behavior, dependencies, waiting, and contracts
+- `tests` — validation of basic behavior, dependencies, waiting, exceptions, and contracts
 
 ## Dependency
 

@@ -50,6 +50,7 @@ Dependencies are represented as:
 - A dependent job becomes runnable exactly on the transition from `1 -> 0`.
 - The unfinished-job counter is decremented exactly once per completed job.
 - `wait()` returns only when the unfinished-job counter reaches zero.
+- A throwing job is still treated as completed for the purposes of dependency unlocking and batch completion.
 
 ## Execution Model
 
@@ -76,6 +77,8 @@ If a cycle is detected, `run()` throws and the batch does not start.
 
 When a job finishes:
 
+- the callable is invoked inside a catch-all wrapper
+- exceptions do not propagate out of the job system
 - each dependent's dependency counter is decremented
 - if a dependent transitions from `1 -> 0`, it is submitted
 - the unfinished-job counter is decremented
@@ -87,13 +90,13 @@ When a job finishes:
 - Futures / return values
 - Incremental graph mutation after execution starts
 - Advanced scheduling policies
+- External thread pool injection
 
 ## Open Design Questions
 
 - What is the exact `JobId` representation long-term?
 - What states should a job have internally beyond dependency count?
 - What contract violations should be rejected at API boundaries?
-- What job exception policy should the system adopt?
 - What graph shapes should be supported in v1 beyond acyclic dependency DAGs?
 
 ## End Goals

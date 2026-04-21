@@ -1,96 +1,85 @@
 # Design Notes
 
-Internal design document for the task graph project.
+Internal design document for the job system.
 
-## Purpose
+## Role in the stack
 
-This document captures the intended semantics, invariants, and end goals of the system.
+- Thread pool → execution engine  
+- Job system → dependency-aware scheduler  
 
-The task graph is an orchestration layer built on top of the job system. It should define how higher-level workflow stages are represented and compiled into executable dependent jobs.
+The job system converts a dependency graph into runnable work for the thread pool.
 
 ## Core Model
 
-- The thread pool is the execution engine.
-- The job system is the scheduling and dependency layer.
-- The task graph is the workflow-description layer.
-- Tasks are created before execution begins.
-- Edges are declared before execution begins.
-- `run()` compiles the current graph into jobs and launches the batch.
-- `wait()` blocks until the compiled batch completes.
+- Jobs are created before execution.
+- Dependencies are declared before execution.
+- `run()` validates and launches a batch.
+- `wait()` blocks until completion.
 
-## Current Internal Model
+Execution is batch-oriented and one-shot.
 
-Each task node contains:
+## Internal Representation
 
-- an optional name
+Each job node contains:
+
 - a callable
-- a list of outgoing edges
+- an atomic dependency counter (remaining_dependencies)
+- a list of dependents
 
-The task graph itself stores:
+Global state:
 
-- a flat list of task nodes
-- a private job-system instance used as the execution backend
-- a started flag used to freeze graph mutation after execution begins
+- unfinished_jobs_ counter
+- mutex + condition variable for wait()
 
-## Current Invariants
+## Dependency Representation
 
-- A task is represented exactly once in the graph.
-- An edge from `A` to `B` means `B` depends on `A`.
-- A task cannot depend on itself.
-- Task IDs must refer to existing tasks.
-- The graph is immutable after `run()` is called.
-- `run()` may be called at most once.
-- Every task is compiled into exactly one job-system job.
-- Every graph edge is translated into exactly one job-system dependency edge.
-- `wait()` returns only after the compiled batch has completed.
+For an edge A → B:
+
+- B increments its dependency counter
+- A stores B as dependent
 
 ## Execution Model
 
-### `run()`
+### run()
 
-`run()` performs a one-shot compilation pass:
+1. validate graph is acyclic (Kahn)
+2. mark started
+3. initialize unfinished_jobs_
+4. schedule zero-dependency jobs
 
-1. mark the graph as started
-2. create one job-system job per task
-3. record the `TaskId -> JobId` mapping
-4. translate each graph edge into a job-system dependency
-5. call `jobs_->run()`
+### completion
 
-### `wait()`
+1. decrement dependents
+2. if 1 → 0, schedule
+3. decrement unfinished_jobs_
+4. notify wait() if zero
 
-`wait()` delegates to the underlying job system and blocks until the compiled batch finishes.
+## Invariants
 
-## Not Implemented Yet
+- A job runs at most once
+- Counters never go negative
+- 1 → 0 transition triggers execution
+- Graph immutable after run()
+- Graph must be acyclic
+- wait() returns when all jobs complete
+- Exceptions are contained
 
-- Cycle validation at the task-graph layer
-- Reusable compiled graphs
-- Named-task lookup
-- Per-task waiting
-- Futures / return values
-- Incremental graph mutation after execution starts
-- Advanced orchestration features
+## Failure Model
 
-## Open Design Questions
+- API misuse → exceptions
+- cycles → rejected at run()
+- job exceptions → contained
 
-- What is the exact `TaskId` representation long-term?
-- Should task names be required, optional, or externally indexed?
-- Should graph compilation be one-shot or reusable?
-- How much pipeline sugar should exist on top of the graph API?
-- What graph validation should happen at API boundaries versus at `run()` time?
+## Non-goals
 
-## End Goals
-
-- Provide a minimal task graph abstraction on top of the job system.
-- Keep graph semantics explicit and easy to explain.
-- Reuse the existing job system cleanly as a lower-level scheduler.
-- Preserve correctness and clarity over advanced orchestration features.
+- futures
+- cancellation
+- priorities
+- dynamic mutation
+- lock-free scheduling
 
 ## Design Philosophy
 
-Small, explicit, and easy to reason about.
-
-When in doubt:
-- prefer stronger invariants
-- prefer simpler lifecycle rules
-- prefer explicit graph semantics over feature growth
-- prefer compilation clarity over orchestration magic
+- explicit over implicit
+- correctness over features
+- simple lifecycle over flexibility

@@ -18,3 +18,4 @@ The goal is to build small systems that are easy to reason about and discuss.
 - [Custom Vector](./custom_vector/)
 - [Thread Pool](./thread_pool/)
 - [Job System](./job_system/)
+- [Task Graph](./task_graph/)

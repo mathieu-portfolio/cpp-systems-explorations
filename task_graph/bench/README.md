@@ -17,12 +17,18 @@ The goal is not to make production-grade orchestration claims. The goal is to un
 
 The benchmark compares four execution modes:
 
-- `direct`
-- `thread_pool`
-- `job_system`
-- `task_graph`
+- `direct` → baseline, no scheduling
+- `thread_pool` → execution engine
+- `job_system` → dependency scheduler
+- `task_graph` → workflow description layer
 
-It evaluates:
+These modes represent different abstraction layers, not equivalent systems.
+The goal is not to determine which is "faster", but to measure:
+
+- the overhead introduced by each layer
+- how scheduling behaves under different workloads
+
+The benchmark evaluates:
 
 - worker count
 - total task count
@@ -165,10 +171,31 @@ This benchmark should help answer:
 - Where does task-graph orchestration become negligible relative to work?
 - How far is task-graph execution from the raw thread pool baseline?
 
+## Expected Trends
+
+- Small tasks:
+  - Scheduling overhead dominates
+  - `direct` and `thread_pool` perform best
+
+- Large tasks:
+  - All modes converge
+  - Overhead becomes negligible relative to work
+
+- Increasing worker count:
+  - Speedup improves up to hardware limits
+  - Higher-level abstractions scale slightly less due to coordination cost
+
+- Graph shapes:
+  - `independent`: best case for throughput
+  - `chain`: worst case, no parallelism
+  - `fan_in` / `fan_out`: partial parallelism with synchronization overhead
+
 ## Notes
 
 - This harness is intentionally simple.
 - Results are machine-specific.
 - Very small tasks exaggerate scheduling overhead.
-- Some graph shapes are not semantically equivalent to a raw thread-pool baseline; that baseline is still useful as a lower-overhead executor comparison.
+- Graph-based scenarios (`chain`, `fan_in`, `fan_out`) enforce dependencies.
+  Lower-level modes such as `thread_pool` do not enforce these constraints,
+  so comparisons should be interpreted as overhead baselines rather than equivalent execution models.
 - Result file management is intentionally manual: choose your own output path when you want to keep a run.

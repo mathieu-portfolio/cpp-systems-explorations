@@ -26,3 +26,24 @@ TEST(TaskGraphContract, RejectsEmptyNamedTask)
         },
         std::invalid_argument);
 }
+
+TEST(TaskGraphContract, RejectsCreatingTasksAfterRunStarts)
+{
+    TaskGraph graph(2);
+
+    graph.run();
+
+    EXPECT_THROW(
+        {
+            graph.add_task([] {});
+        },
+        std::logic_error);
+}
+
+TEST(TaskGraphContract, RejectsRunMoreThanOnce)
+{
+    TaskGraph graph(2);
+
+    graph.run();
+    EXPECT_THROW(graph.run(), std::logic_error);
+}

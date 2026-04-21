@@ -2,7 +2,24 @@
 
 A minimal task graph / pipeline system built on top of the `job_system` project.
 
-**Status:** project skeleton
+**Status:** graph construction, compilation to JobSystem, and batch execution implemented
+
+## What is a task graph?
+
+A task graph is a higher-level way to describe a workflow.
+
+Instead of manually creating low-level jobs and dependencies, you define:
+
+- tasks
+- edges between tasks
+- one full graph to execute
+
+Example:
+
+load → parse → transform → save  
+load → validate  
+
+The task graph layer takes that workflow description and compiles it into dependent jobs that the job system can schedule.
 
 ## Purpose
 
@@ -20,8 +37,6 @@ The task graph answers:
 - how named stages depend on each other
 - how a pipeline is built from reusable steps
 - how a graph of work is compiled into executable jobs
-
-The goal is to build a small, clear orchestration layer for dependency-driven workflows, suitable for discussion in a systems interview.
 
 ## Intended Scope
 
@@ -43,9 +58,7 @@ The goal is to build a small, clear orchestration layer for dependency-driven wo
 - advanced scheduling policies
 - incremental recomputation / caching
 
-## Planned Public Model
-
-The first version is intended to be batch-oriented:
+## Usage Model
 
 1. create a graph
 2. add tasks
@@ -53,7 +66,17 @@ The first version is intended to be batch-oriented:
 4. run the graph
 5. wait for completion
 
-This keeps lifecycle and semantics simple.
+## Current Behavior
+
+- Tasks can be added with or without a name.
+- Edges can be declared before execution.
+- A task cannot depend on itself.
+- Task IDs are validated at API boundaries.
+- The graph becomes immutable after `run()` is called.
+- `run()` compiles the task graph into a job-system batch.
+- Graph dependencies are translated into job-system dependencies.
+- `wait()` forwards to the compiled batch and blocks until completion.
+- Empty graphs are allowed.
 
 ## Project Structure
 

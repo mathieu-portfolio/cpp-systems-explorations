@@ -39,6 +39,9 @@ private:
         std::vector<TaskId> outgoing;
     };
 
+    TaskNode& get_task(TaskId id);
+    const TaskNode& get_task(TaskId id) const;
+
     std::vector<TaskNode> tasks_;
     JobSystem* jobs_ = nullptr;
     bool started_ = false;

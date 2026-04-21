@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(custom_thread_pool LANGUAGES CXX)
+project(thread_pool LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,7 +9,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # -----------------------------
 # Library
 # -----------------------------
-
 add_library(thread_pool
     src/thread_pool.cpp
 )
@@ -65,18 +64,21 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_SOURCE_DIR}/tests
     )
 
-    add_executable(thread_pool_bench
-        bench/bench.cpp
-    )
-
-    target_link_libraries(thread_pool_bench
-        PRIVATE thread_pool
-    )
-
-    target_include_directories(thread_pool_bench
-        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
-    )
-
     include(GoogleTest)
     gtest_discover_tests(thread_pool_tests)
 endif()
+
+# -----------------------------
+# Benchmark
+# -----------------------------
+add_executable(thread_pool_bench
+bench/bench.cpp
+)
+
+target_link_libraries(thread_pool_bench
+PRIVATE thread_pool
+)
+
+target_include_directories(thread_pool_bench
+PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
+)

@@ -71,3 +71,18 @@ if(BUILD_TESTING)
     include(GoogleTest)
     gtest_discover_tests(arena_tests)
 endif()
+
+# -----------------------------
+# Benchmark
+# -----------------------------
+add_executable(arena_bench
+bench/bench.cpp
+)
+
+target_link_libraries(arena_bench
+PRIVATE arena
+)
+
+target_include_directories(arena_bench
+PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
+)

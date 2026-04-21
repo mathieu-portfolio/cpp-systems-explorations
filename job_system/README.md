@@ -1,87 +1,68 @@
-# Job System
+# Thread Pool
 
-A minimal batch-oriented job system built on top of the `thread_pool` project.
+A minimal fixed-size thread pool built as a systems programming exercise.
 
-**Status:** dependency graph, execution path, cycle rejection, and exception containment implemented
+## Overview
 
-## Purpose
+This project implements a small thread pool with a fixed number of worker threads and a shared job queue. It is intentionally narrow in scope and designed to make the core concurrency semantics explicit:
 
-This project is the next layer above the thread pool.
+- asynchronous job submission
+- worker thread lifecycle
+- ownership transfer of submitted jobs
+- graceful draining shutdown
+- basic correctness under concurrent submission
 
-The thread pool answers:
+The goal is not to compete with production libraries. The goal is to build a small, correct, well-reasoned component that is easy to discuss in a systems interview.
 
-- how worker threads execute runnable jobs
-- how work is queued
-- how shutdown is coordinated
+## Features
 
-The job system answers:
+- fixed number of worker threads
+- job submission via `submit(std::function<void()>)`
+- internal FIFO job queue
+- worker threads wait efficiently when idle
+- destructor performs graceful shutdown:
+  - stop accepting new work
+  - finish queued work
+  - join all worker threads
 
-- when a job becomes runnable
-- how dependencies between jobs are represented
-- how completion of one job unlocks another
-- how a batch of work is launched and waited on
+## Contract
 
-The goal is to build a small, well-reasoned scheduler with explicit dependency semantics, suitable for discussion in a systems interview.
+- `ThreadPool(thread_count)` requires `thread_count > 0`; constructing with zero threads throws.
+- `submit(job)` requires a valid callable; submitting an empty job throws.
+- Once shutdown begins, new submissions are rejected and throw.
+- Once a job is accepted, it becomes the pool's responsibility for execution.
+- The destructor returns only after all accepted work has finished and all worker threads have terminated.
 
-## Intended Scope
+## Non-Goals
 
-### In scope
+This project intentionally does not include:
 
-- batch-oriented execution model
-- jobs identified through lightweight handles
-- explicit dependency edges between jobs
-- runnable jobs submitted to the thread pool
-- completion tracking
-- `wait()` for a full batch
-- cycle rejection at execution start
-- contained job exceptions
-
-### Out of scope
-
-- futures / return values
-- cancellation
-- priorities
+- futures or return values
 - work stealing
-- dynamic graph mutation during execution
-- lock-free scheduling
-- persistence / serialization
-
-## Planned Public Model
-
-The first version is batch-oriented:
-
-1. create jobs
-2. add dependencies
-3. run the batch
-4. wait for completion
-
-This keeps the lifecycle simple and makes the semantics easier to reason about.
-
-## Current Behavior
-
-- Jobs can be created with a callable.
-- Dependencies can be declared between jobs before execution.
-- A job cannot depend on itself.
-- Job IDs are validated at API boundaries.
-- The job graph becomes immutable after `run()` is called.
-- `run()` validates that the graph is acyclic before launching work.
-- `run()` submits all initially runnable jobs to the thread pool.
-- Completing a job decrements the dependency count of its dependents.
-- A dependent job is submitted when its remaining dependency count reaches zero.
-- `wait()` returns when all jobs in the batch have completed.
-- Empty batches are allowed.
-- Cyclic graphs are rejected by `run()`.
-- Job exceptions are caught internally; a throwing job is still treated as completed for dependency unlocking and batch completion.
+- lock-free queues
+- task dependencies
+- dynamic thread scaling
+- advanced scheduling policies
 
 ## Project Structure
 
-- `job_system` — library implementation (public API and scheduling logic)
-- `demo` — simple example showing how to build and run a small job graph
-- `tests` — validation of basic behavior, dependencies, waiting, exceptions, and contracts
-
-## Dependency
-
-This project depends on the sibling `thread_pool` project and uses it as the execution layer.
+```text
+thread_pool/
+├── CMakeLists.txt
+├── README.md
+├── DESIGN.md
+├── include/
+│   └── thread_pool.hpp
+├── src/
+│   └── thread_pool.cpp
+├── demo/
+│   └── demo.cpp
+└── tests/
+    ├── basic_tests.cpp
+    ├── shutdown_tests.cpp
+    ├── stress_tests.cpp
+    └── contract_tests.cpp
+```
 
 ## Build
 
@@ -90,8 +71,42 @@ cmake -S . -B build
 cmake --build build
 ```
 
-## Notes
+## Run Demo
 
-This is a learning-focused implementation.
+```bash
+./build/thread_pool_demo
+```
 
-The main value of this project is not feature count, but clear semantics around dependency tracking, scheduling, and completion.
+On Visual Studio generators, run the produced executable from the build output directory.
+
+## Run Tests
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+## Example
+
+```cpp
+ThreadPool pool(4);
+
+pool.submit([] {
+    // do work
+});
+
+pool.submit([] {
+    // do more work
+});
+```
+
+## Why This Project Matters
+
+A thread pool is a small but important systems component. Building one forces you to reason about:
+
+- shared mutable state
+- synchronization boundaries
+- thread ownership and lifetime
+- API contracts under concurrency
+- shutdown semantics
+
+These are foundational topics for larger systems such as job systems, async runtimes, servers, and game engines.

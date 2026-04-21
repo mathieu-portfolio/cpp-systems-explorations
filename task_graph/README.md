@@ -15,8 +15,10 @@ Instead of manually managing execution order, you define:
 
 Example:
 
+```text
 load → parse → transform → save  
 load → validate  
+```
 
 Execution:
 - `load` runs first
@@ -72,8 +74,10 @@ Depends on the sibling `job_system` project.
 
 ## Build
 
+```text
 cmake -S . -B build  
 cmake --build build  
+```
 
 ## Notes
 

@@ -1,5 +1,4 @@
 #pragma once
-
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -8,21 +7,12 @@
 
 class JobSystem;
 
-struct TaskId
-{
-    std::uint32_t value = 0;
-};
+struct TaskId { std::uint32_t value = 0; };
 
-class TaskGraph
-{
+class TaskGraph {
 public:
     explicit TaskGraph(std::size_t worker_count);
     ~TaskGraph();
-
-    TaskGraph(const TaskGraph&) = delete;
-    TaskGraph& operator=(const TaskGraph&) = delete;
-    TaskGraph(TaskGraph&&) = delete;
-    TaskGraph& operator=(TaskGraph&&) = delete;
 
     TaskId add_task(std::function<void()> fn);
     TaskId add_named_task(std::string name, std::function<void()> fn);
@@ -32,8 +22,7 @@ public:
     void wait();
 
 private:
-    struct TaskNode
-    {
+    struct TaskNode {
         std::string name;
         std::function<void()> fn;
         std::vector<TaskId> outgoing;
@@ -41,6 +30,8 @@ private:
 
     TaskNode& get_task(TaskId id);
     const TaskNode& get_task(TaskId id) const;
+
+    void validate_acyclic() const;
 
     std::vector<TaskNode> tasks_;
     JobSystem* jobs_ = nullptr;

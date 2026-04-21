@@ -1,68 +1,74 @@
-# Job System
+# Task Graph
 
-A minimal batch-oriented job system built on top of the `thread_pool` project.
+A minimal task graph / pipeline system built on top of the `job_system` project.
 
-**Status:** dependency graph, execution path, cycle rejection, and exception containment implemented
+**Status:** graph construction, validation, and batch execution implemented
 
-## What is a job system?
+## What is a task graph?
 
-A job system turns a **graph of work** into **correct parallel execution**.
+A task graph describes a workflow as a set of tasks and dependencies.
 
-- A thread pool runs tasks  
-- A job system decides **when** tasks are allowed to run  
+Instead of manually managing execution order, you define:
+
+- tasks
+- dependencies between tasks
 
 Example:
 
-A → B → C  
-A → D  
+load → parse → transform → save  
+load → validate  
 
 Execution:
-- A runs first  
-- B and D unlock and run in parallel  
-- C runs after B  
+- `load` runs first
+- `parse` and `validate` unlock after `load`
+- `transform` runs after `parse`
+- `save` runs last
 
-You describe dependencies. The system handles ordering and parallelism.
+The system automatically schedules and runs tasks based on these dependencies.
 
 ## Purpose
 
-This project builds a dependency-aware scheduling layer on top of a thread pool.
+This project builds a workflow-description layer on top of the job system.
 
 It is responsible for:
 
-- deciding when jobs become runnable  
-- tracking dependencies between jobs  
-- unlocking work when jobs complete  
-- executing a full batch and waiting for completion  
+- describing multi-stage workflows
+- expressing dependencies between tasks
+- compiling a graph into executable jobs
+- running the graph and waiting for completion
 
 ## Usage Model
 
-1. create jobs  
-2. add dependencies  
-3. run  
-4. wait  
+1. create a graph  
+2. add tasks  
+3. add edges  
+4. run  
+5. wait  
 
 ## Behavior
 
-- Jobs are defined with a callable.
-- Dependencies are declared before execution.
-- A job cannot depend on itself.
-- The graph becomes immutable after `run()` is called.
+- Tasks can be added with or without a name.
+- Named tasks must be unique and non-empty.
+- Tasks can be referenced by ID or by name.
+- Edges define dependencies between tasks.
+- A task cannot depend on itself.
+- Duplicate edges are rejected.
+- The graph becomes immutable after `run()`.
 - `run()` validates that the graph is acyclic.
-- Runnable jobs are scheduled automatically.
-- Completion unlocks dependent jobs.
-- `wait()` blocks until all jobs complete.
-- Empty batches are allowed.
-- Job exceptions are contained and do not block progress.
+- The graph is compiled into a job-system batch at execution time.
+- Task dependencies are enforced during execution.
+- `wait()` blocks until all tasks complete.
+- Empty graphs are allowed.
 
 ## Project Structure
 
-- `job_system` — implementation  
+- `task_graph` — implementation  
 - `demo` — usage example  
 - `tests` — validation  
 
 ## Dependency
 
-Depends on the sibling `thread_pool` project.
+Depends on the sibling `job_system` project.
 
 ## Build
 
@@ -71,4 +77,4 @@ cmake --build build
 
 ## Notes
 
-Focus is on clarity, correctness, and explicit dependency semantics.
+Focus is on clarity, correctness, and explicit workflow semantics.

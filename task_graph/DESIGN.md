@@ -1,85 +1,114 @@
 # Design Notes
 
-Internal design document for the job system.
+Internal design document for the task graph system.
 
 ## Role in the stack
 
 - Thread pool → execution engine  
-- Job system → dependency-aware scheduler  
+- Job system → dependency scheduler  
+- Task graph → workflow description and compilation layer  
 
-The job system converts a dependency graph into runnable work for the thread pool.
+The task graph converts a high-level workflow into a job-system graph.
 
 ## Core Model
 
-- Jobs are created before execution.
+- Tasks are created before execution.
 - Dependencies are declared before execution.
-- `run()` validates and launches a batch.
-- `wait()` blocks until completion.
+- `run()` compiles the graph into jobs.
+- `wait()` blocks until execution completes.
 
 Execution is batch-oriented and one-shot.
 
 ## Internal Representation
 
-Each job node contains:
+Each task node contains:
 
-- a callable
-- an atomic dependency counter (remaining_dependencies)
-- a list of dependents
+- optional name
+- callable
+- outgoing edges
 
 Global state:
 
-- unfinished_jobs_ counter
-- mutex + condition variable for wait()
+- flat list of task nodes
+- name → TaskId map (for named tasks)
+- private JobSystem instance
+- started flag (freezes mutation after run)
 
-## Dependency Representation
+## Graph Semantics
 
-For an edge A → B:
+For an edge:
 
-- B increments its dependency counter
-- A stores B as dependent
+A → B
+
+- B depends on A
+- B can only run after A completes
+
+Edges are stored as adjacency lists (outgoing edges).
 
 ## Execution Model
 
 ### run()
 
-1. validate graph is acyclic (Kahn)
-2. mark started
-3. initialize unfinished_jobs_
-4. schedule zero-dependency jobs
+1. validate graph is acyclic (Kahn algorithm)
+2. mark graph as started
+3. create one job per task
+4. map TaskId → JobId
+5. translate edges into job-system dependencies
+6. call job system `run()`
 
-### completion
+### wait()
 
-1. decrement dependents
-2. if 1 → 0, schedule
-3. decrement unfinished_jobs_
-4. notify wait() if zero
+Delegates to the job system and blocks until completion.
 
 ## Invariants
 
-- A job runs at most once
-- Counters never go negative
-- 1 → 0 transition triggers execution
-- Graph immutable after run()
-- Graph must be acyclic
-- wait() returns when all jobs complete
-- Exceptions are contained
+- Each task appears exactly once in the graph.
+- Task IDs refer to valid tasks.
+- Named tasks are unique.
+- A task cannot depend on itself.
+- Duplicate edges are rejected.
+- Graph is immutable after `run()`.
+- `run()` may be called at most once.
+- Graph must be acyclic at execution time.
+- Each task is compiled to exactly one job.
+- Each edge maps to one job-system dependency.
+- `wait()` returns only when execution completes.
+
+## Validation
+
+Cycle detection uses a Kahn-style topological pass:
+
+- compute indegree for each node
+- process zero-indegree nodes
+- detect incomplete traversal → cycle
+
+Validation occurs in `run()` before compilation.
 
 ## Failure Model
 
-- API misuse → exceptions
-- cycles → rejected at run()
-- job exceptions → contained
+- invalid API usage → exceptions
+- cycles → rejected at `run()`
+- job execution exceptions → handled by underlying job system
 
 ## Non-goals
 
-- futures
+- futures / return values
 - cancellation
 - priorities
-- dynamic mutation
-- lock-free scheduling
+- dynamic graph mutation during execution
+- distributed execution
+- persistence / serialization
+
+## Design Trade-offs
+
+- One-shot compilation simplifies correctness
+- Delegating execution to JobSystem avoids duplication
+- Explicit graph representation favors clarity
+- No dynamic mutation keeps invariants simple
 
 ## Design Philosophy
 
-- explicit over implicit
-- correctness over features
-- simple lifecycle over flexibility
+- explicit over implicit  
+- correctness over features  
+- simple lifecycle over flexibility  
+- clear semantics over abstraction complexity  

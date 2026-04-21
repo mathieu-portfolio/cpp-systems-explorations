@@ -38,7 +38,9 @@ Global state:
 
 For an edge:
 
+```text
 A → B
+```
 
 - B depends on A
 - B can only run after A completes

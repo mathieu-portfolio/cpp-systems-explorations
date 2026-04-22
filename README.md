@@ -19,3 +19,5 @@ The goal is to build small systems that are easy to reason about and discuss.
 - [Thread Pool](./thread_pool/)
 - [Job System](./job_system/)
 - [Task Graph](./task_graph/)
+- [Work Sealing Pool](./work_stealing_pool/)
+- [Fiber Job System](./fiber_job_system/)

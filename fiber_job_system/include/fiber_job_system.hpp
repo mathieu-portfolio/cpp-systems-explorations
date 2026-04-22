@@ -2,20 +2,6 @@
 
 #include <cstddef>
 #include <functional>
-#include <memory>
-
-enum class FiberStepResult
-{
-    Yield,
-    Complete
-};
-
-class FiberTask
-{
-public:
-    virtual ~FiberTask() = default;
-    virtual FiberStepResult run() = 0;
-};
 
 class FiberJobSystem
 {
@@ -29,10 +15,11 @@ public:
     FiberJobSystem& operator=(FiberJobSystem&&) = delete;
 
     void submit(std::function<void()> job);
-    void submit_resumable(std::function<FiberStepResult()> step);
-    void submit_task(std::unique_ptr<FiberTask> task);
 
+    // Suspends the currently running fiber and returns control to the worker scheduler.
     void yield_current();
+
+    // Moves all suspended fibers back to runnable work.
     void resume_all();
 
 private:

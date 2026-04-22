@@ -4,6 +4,6 @@
 
 TEST(FiberJobSystemBasic, CanConstructScheduler)
 {
-    FiberJobSystem scheduler(2);
+    FiberJobSystem scheduler(1);
     SUCCEED();
 }

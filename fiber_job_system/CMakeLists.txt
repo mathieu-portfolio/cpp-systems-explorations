@@ -1,10 +1,16 @@
 cmake_minimum_required(VERSION 3.16)
 
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+endif()
+
 project(fiber_job_system LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+find_package(Boost REQUIRED CONFIG COMPONENTS context)
 
 # -----------------------------
 # JobSystem dependency
@@ -19,7 +25,9 @@ add_library(fiber_job_system
 )
 
 target_link_libraries(fiber_job_system
-    PUBLIC job_system
+    PUBLIC
+        job_system
+        Boost::context
 )
 
 target_include_directories(fiber_job_system

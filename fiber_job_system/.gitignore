@@ -1,5 +1,5 @@
 /build/
-/temp/
+/vcpkg_installed/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake

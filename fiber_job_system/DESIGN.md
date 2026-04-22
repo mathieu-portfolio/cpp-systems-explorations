@@ -6,7 +6,7 @@ Internal design document for the fiber job system project.
 
 This document captures the intended semantics, invariants, and end goals of the system.
 
-The fiber job system is a cooperative scheduling layer built on top of the existing execution stack. It should allow execution to suspend and resume without blocking an OS worker thread.
+The fiber job system is a cooperative scheduling layer built on top of the existing execution stack. It allows execution to suspend and resume without blocking an OS worker thread.
 
 ## Role in the stack
 
@@ -16,41 +16,32 @@ The fiber job system is a cooperative scheduling layer built on top of the exist
 
 ## Current Implementation Strategy
 
-The current version is still model-first, but now moves resumable state ownership into dedicated task objects.
+The current version uses **portable stackful continuations** via `boost::context`.
 
 That means:
 
-- resume state belongs to the fiber task
-- scheduler owns the fiber and its task lifetime
-- lambda-based resumable submission is now only a convenience adapter
-
-This is one step closer to real fibers, where execution state belongs to the resumable unit itself.
+- submitted jobs are wrapped as scheduler-owned continuation-backed fibers
+- worker threads resume runnable fibers
+- `yield_current()` switches back to the worker scheduler continuation
+- resumed work continues from the exact instruction point where it yielded
 
 ## Core Model
 
 - A fiber is a scheduler-owned execution unit.
-- A resumable fiber owns a `FiberTask`.
-- The task object stores logical progress across resumes.
-- Worker threads execute runnable fibers but do not own them.
+- Worker threads run a scheduler loop and resume runnable fibers.
+- A running fiber may yield cooperatively.
+- Yielding returns control to the scheduler immediately.
 - Suspended fibers may later be moved back to runnable work.
 - Completion is distinct from yielding.
 
-## Fiber Kinds
+## Fiber States
 
-### One-shot fibers
+The minimal state model currently used is:
 
-- hold `std::function<void()>`
-- execute once
-- may still suspend via `yield_current()`
-- restart from the beginning if resumed after `yield_current()`
-
-### Task-based resumable fibers
-
-- hold `std::unique_ptr<FiberTask>`
-- call `FiberTask::run()` each time they are scheduled
-- preserve logical progress inside task fields
-- return `Yield` to suspend
-- return `Complete` to finish
+- `Runnable`
+- `Running`
+- `Suspended`
+- `Completed`
 
 ## State Invariants
 
@@ -59,15 +50,14 @@ This is one step closer to real fibers, where execution state belongs to the res
 - Yielding does not block the worker thread.
 - Completed fibers do not become runnable again.
 - Suspended fibers remain scheduler-owned.
-- A `FiberTask` is owned by exactly one fiber.
+- Returning to the scheduler from a fiber always leaves the fiber in either `Suspended` or `Completed`.
 
 ## Execution Model
 
-### `submit_task()`
+### `submit()`
 
-- reject null tasks
-- create a new runnable fiber
-- transfer ownership of the task into the fiber
+- reject empty jobs
+- create a continuation-backed fiber for the submitted callable
 - enqueue runnable work
 - wake a worker
 
@@ -76,9 +66,16 @@ This is one step closer to real fibers, where execution state belongs to the res
 - wait for runnable work
 - move one fiber into execution
 - mark it `Running`
-- execute one-shot or task-based behavior
-- on normal completion → mark `Completed`
-- on yield → mark `Suspended` and store it
+- resume the fiber continuation
+- when control returns:
+  - if `Suspended` → store it
+  - if `Completed` → destroy it
+
+### `yield_current()`
+
+- verify that the caller is the current running fiber
+- mark the fiber `Suspended`
+- resume the scheduler continuation
 
 ### `resume_all()`
 
@@ -86,19 +83,15 @@ This is one step closer to real fibers, where execution state belongs to the res
 - mark them `Runnable`
 - wake workers
 
-## Important Limitation
+## Important Limitations
 
-The current version still does not preserve native stack or instruction position.
-
-That means:
-
-- `FiberTask` preserves logical state, not CPU execution context
-- one-shot jobs that yield still restart from the beginning
-- true continuation semantics still require real context switching later
+- Suspended fibers are resumed manually with `resume_all()`.
+- Integration with job waiting / continuation semantics is not implemented yet.
+- Backend portability currently depends on `boost::context` availability.
 
 ## End Goals
 
 - Provide a minimal cooperative scheduling layer on top of the current stack.
 - Make suspension and resumption explicit and explainable.
-- Move toward true per-fiber execution ownership before real context switching.
+- Use real context switching rather than simulated logical steps.
 - Preserve clarity over advanced runtime features.

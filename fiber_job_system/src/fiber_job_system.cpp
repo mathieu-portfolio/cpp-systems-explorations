@@ -1,9 +1,10 @@
 #include "fiber_job_system.hpp"
 
+#include <boost/context/continuation.hpp>
+
 #include <condition_variable>
 #include <cstddef>
 #include <deque>
-#include <exception>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -12,29 +13,11 @@
 #include <utility>
 #include <vector>
 
-namespace
-{
-struct YieldException final : std::exception
-{
-};
+namespace ctx = boost::context;
 
-class LambdaFiberTask final : public FiberTask
-{
-public:
-    explicit LambdaFiberTask(std::function<FiberStepResult()> step)
-        : step_(std::move(step))
-    {
-    }
-
-    FiberStepResult run() override
-    {
-        return step_();
-    }
-
-private:
-    std::function<FiberStepResult()> step_;
-};
-}
+thread_local void* t_current_impl = nullptr;
+thread_local void* t_current_fiber = nullptr;
+thread_local ctx::continuation* t_scheduler_sink = nullptr;
 
 struct FiberJobSystem::Impl
 {
@@ -48,25 +31,19 @@ struct FiberJobSystem::Impl
 
     struct Fiber
     {
-        std::function<void()> one_shot_fn;
-        std::unique_ptr<FiberTask> task;
-        bool is_resumable = false;
+        std::function<void()> fn;
+        ctx::continuation cont;
         FiberState state = FiberState::Runnable;
     };
 
     std::vector<std::thread> workers;
-
     std::deque<std::unique_ptr<Fiber>> runnable;
     std::vector<std::unique_ptr<Fiber>> suspended;
 
     std::mutex mutex;
     std::condition_variable cv;
-
     bool stopping = false;
 };
-
-thread_local void* t_current_impl = nullptr;
-thread_local void* t_current_fiber = nullptr;
 
 FiberJobSystem::FiberJobSystem(std::size_t worker_count)
 {
@@ -104,38 +81,24 @@ FiberJobSystem::FiberJobSystem(std::size_t worker_count)
                 t_current_impl = impl_;
                 t_current_fiber = fiber.get();
 
-                try
-                {
-                    if (fiber->is_resumable)
-                    {
-                        const FiberStepResult result = fiber->task->run();
-                        if (result == FiberStepResult::Yield)
-                        {
-                            fiber->state = Impl::FiberState::Suspended;
-                            std::lock_guard<std::mutex> lock(impl_->mutex);
-                            impl_->suspended.push_back(std::move(fiber));
-                        }
-                        else
-                        {
-                            fiber->state = Impl::FiberState::Completed;
-                        }
-                    }
-                    else
-                    {
-                        fiber->one_shot_fn();
-                        fiber->state = Impl::FiberState::Completed;
-                    }
-                }
-                catch (const YieldException&)
-                {
-                    fiber->state = Impl::FiberState::Suspended;
-
-                    std::lock_guard<std::mutex> lock(impl_->mutex);
-                    impl_->suspended.push_back(std::move(fiber));
-                }
+                fiber->cont = std::move(fiber->cont).resume();
 
                 t_current_fiber = nullptr;
                 t_current_impl = nullptr;
+
+                if (fiber->state == Impl::FiberState::Suspended)
+                {
+                    std::lock_guard<std::mutex> lock(impl_->mutex);
+                    impl_->suspended.push_back(std::move(fiber));
+                }
+                else if (fiber->state == Impl::FiberState::Completed)
+                {
+                    // Fiber context is released automatically when continuation is destroyed.
+                }
+                else
+                {
+                    throw std::logic_error("Fiber returned to scheduler in invalid state");
+                }
             }
         });
     }
@@ -168,6 +131,31 @@ void FiberJobSystem::submit(std::function<void()> job)
         throw std::invalid_argument("submit() requires a valid callable");
     }
 
+    auto fiber = std::make_unique<Impl::Fiber>();
+    fiber->fn = std::move(job);
+    fiber->state = Impl::FiberState::Runnable;
+
+    Impl::Fiber* raw_fiber = fiber.get();
+    Impl* raw_impl = impl_;
+
+    fiber->cont = ctx::callcc([raw_fiber, raw_impl](ctx::continuation&& sink) mutable {
+        // Initial handoff back to the creator thread so the fiber starts later on a worker.
+        sink = std::move(sink).resume();
+
+        t_current_impl = raw_impl;
+        t_current_fiber = raw_fiber;
+        t_scheduler_sink = &sink;
+
+        raw_fiber->fn();
+        raw_fiber->state = Impl::FiberState::Completed;
+
+        t_scheduler_sink = nullptr;
+        t_current_fiber = nullptr;
+        t_current_impl = nullptr;
+
+        return std::move(sink);
+    });
+
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);
 
@@ -176,45 +164,6 @@ void FiberJobSystem::submit(std::function<void()> job)
             throw std::logic_error("submit() cannot be called after shutdown begins");
         }
 
-        auto fiber = std::make_unique<Impl::Fiber>();
-        fiber->one_shot_fn = std::move(job);
-        fiber->is_resumable = false;
-        fiber->state = Impl::FiberState::Runnable;
-        impl_->runnable.push_back(std::move(fiber));
-    }
-
-    impl_->cv.notify_one();
-}
-
-void FiberJobSystem::submit_resumable(std::function<FiberStepResult()> step)
-{
-    if (!step)
-    {
-        throw std::invalid_argument("submit_resumable() requires a valid callable");
-    }
-
-    submit_task(std::make_unique<LambdaFiberTask>(std::move(step)));
-}
-
-void FiberJobSystem::submit_task(std::unique_ptr<FiberTask> task)
-{
-    if (!task)
-    {
-        throw std::invalid_argument("submit_task() requires a valid task");
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-
-        if (impl_->stopping)
-        {
-            throw std::logic_error("submit_task() cannot be called after shutdown begins");
-        }
-
-        auto fiber = std::make_unique<Impl::Fiber>();
-        fiber->task = std::move(task);
-        fiber->is_resumable = true;
-        fiber->state = Impl::FiberState::Runnable;
         impl_->runnable.push_back(std::move(fiber));
     }
 
@@ -223,12 +172,17 @@ void FiberJobSystem::submit_task(std::unique_ptr<FiberTask> task)
 
 void FiberJobSystem::yield_current()
 {
-    if (t_current_impl != static_cast<void*>(impl_) || t_current_fiber == nullptr)
+    if (t_current_impl != static_cast<void*>(impl_) || t_current_fiber == nullptr || t_scheduler_sink == nullptr)
     {
         throw std::logic_error("yield_current() must be called from a running fiber owned by this scheduler");
     }
 
-    throw YieldException{};
+    auto* fiber = static_cast<Impl::Fiber*>(t_current_fiber);
+    fiber->state = Impl::FiberState::Suspended;
+
+    *t_scheduler_sink = std::move(*t_scheduler_sink).resume();
+
+    fiber->state = Impl::FiberState::Running;
 }
 
 void FiberJobSystem::resume_all()

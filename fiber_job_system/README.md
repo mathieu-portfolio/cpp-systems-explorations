@@ -2,58 +2,84 @@
 
 A minimal cooperative scheduling layer intended to sit above the `job_system` project.
 
-**Status:** simulated scheduler with `FiberTask` state ownership implemented, real context switching not implemented
+**Status:** portable context switching implemented with `boost::context`
 
 ## What is a fiber job system?
 
-A fiber job system allows execution to yield and later resume without blocking an OS worker thread.
+A fiber job system allows execution to **yield and later resume at the same instruction point** without blocking an OS worker thread.
 
-The current version models that behavior with scheduler-owned tasks:
+The current version uses `boost::context::continuation`:
 
-- submitted work becomes scheduler-owned runnable fibers
-- one-shot jobs can still be submitted with `submit()`
-- resumable work can be submitted as a `FiberTask`
-- the task object owns its logical progress
-- suspended fibers are later moved back to runnable work with `resume_all()`
-
-This version does not yet preserve native stack context, but logical resume state now belongs to the fiber task itself rather than external captured variables.
+* submitted work becomes scheduler-owned fibers
+* worker threads resume runnable continuations
+* `yield_current()` returns control to the worker scheduler continuation
+* `resume_all()` moves suspended fibers back to runnable work
+* resumed fibers continue from the same point where they yielded
 
 ## Purpose
 
-This project explores cooperative scheduling semantics on top of the existing execution stack before introducing real context-switching machinery.
+This project explores cooperative scheduling on top of the existing execution stack.
 
 It is intended to answer:
 
-- how runnable and suspended work are represented
-- how yielding changes scheduler state
-- how fiber-owned state differs from captured-lambda state
+* how execution can suspend without blocking worker threads
+* how scheduler-owned fibers are resumed later
+* how portable context switching differs from platform-specific fiber APIs
 
 ## Current Model
 
-The current implementation supports three submission forms:
+The current implementation supports:
 
-- one-shot jobs:
-  - submitted with `submit()`
-  - run once to completion
+* `submit()` for one-shot fiber work
+* `yield_current()` for cooperative suspension
+* `resume_all()` to re-enqueue suspended fibers
 
-- lambda-based resumable jobs:
-  - submitted with `submit_resumable()`
-  - adapted internally into a `FiberTask`
+Unlike the previous simulated model, resumed fibers continue from the exact yield point.
 
-- task-based resumable jobs:
-  - submitted with `submit_task()`
-  - store logical progress directly inside the task object
+## Build
 
-## Planned Public Model
+This project uses **vcpkg** to manage dependencies.
 
-The current API surface is:
+### Requirements
 
-- `submit()` to create one-shot schedulable work
-- `submit_resumable()` as a convenience wrapper for step-based resumable work
-- `submit_task()` to submit a stateful `FiberTask`
-- `yield_current()` to cooperatively suspend the current one-shot fiber
-- `resume_all()` to move suspended fibers back to runnable work
+* CMake 3.21+
+* C++17 compiler
+* vcpkg
+* `VCPKG_ROOT` environment variable set
+
+### Setup
+
+Install dependencies:
+
+```bash
+vcpkg install
+```
+
+### Build
+
+Debug:
+
+```bash
+cmake --preset default
+cmake --build --preset default
+```
+
+Release:
+
+```bash
+cmake --preset release
+cmake --build --preset release
+```
+
+### Run tests
+
+```bash
+ctest --preset default
+```
 
 ## Notes
 
-This is a learning-focused implementation. The goal is to validate scheduler ownership and task-owned resume semantics before introducing real fiber context switching.
+* Uses **Boost.Context** for portable stackful context switching.
+* Not tied to Windows fibers.
+* Still intentionally minimal.
+* Waiting on other jobs/events is not integrated yet.

@@ -1,7 +1,12 @@
 #pragma once
-
 #include <cstddef>
 #include <functional>
+
+enum class FiberStepResult
+{
+    Yield,
+    Complete
+};
 
 class FiberJobSystem
 {
@@ -11,10 +16,9 @@ public:
 
     FiberJobSystem(const FiberJobSystem&) = delete;
     FiberJobSystem& operator=(const FiberJobSystem&) = delete;
-    FiberJobSystem(FiberJobSystem&&) = delete;
-    FiberJobSystem& operator=(FiberJobSystem&&) = delete;
 
     void submit(std::function<void()> job);
+    void submit_resumable(std::function<FiberStepResult()> step);
     void yield_current();
     void resume_all();
 

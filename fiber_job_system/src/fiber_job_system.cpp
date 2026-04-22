@@ -1,105 +1,85 @@
 #include "fiber_job_system.hpp"
-
-#include <condition_variable>
-#include <cstddef>
 #include <deque>
-#include <exception>
-#include <functional>
 #include <memory>
 #include <mutex>
-#include <stdexcept>
+#include <condition_variable>
 #include <thread>
-#include <utility>
+#include <stdexcept>
 #include <vector>
 
-namespace
-{
-struct YieldException final : std::exception
-{
-};
-}
+namespace { struct YieldException {}; }
 
 struct FiberJobSystem::Impl
 {
-    enum class FiberState
-    {
-        Runnable,
-        Running,
-        Suspended,
-        Completed
-    };
-
     struct Fiber
     {
-        std::function<void()> fn;
-        FiberState state = FiberState::Runnable;
+        std::function<void()> one_shot;
+        std::function<FiberStepResult()> step;
+        bool resumable = false;
     };
-
-    std::vector<std::thread> workers;
 
     std::deque<std::unique_ptr<Fiber>> runnable;
     std::vector<std::unique_ptr<Fiber>> suspended;
 
-    std::mutex mutex;
+    std::mutex m;
     std::condition_variable cv;
-
-    bool stopping = false;
+    std::vector<std::thread> workers;
+    bool stop = false;
 };
 
-thread_local void* t_current_impl = nullptr;
-thread_local void* t_current_fiber = nullptr;
+thread_local void* t_impl = nullptr;
+thread_local void* t_fiber = nullptr;
 
-FiberJobSystem::FiberJobSystem(std::size_t worker_count)
+FiberJobSystem::FiberJobSystem(std::size_t n)
 {
-    if (worker_count == 0)
-    {
-        throw std::invalid_argument("FiberJobSystem requires at least one worker");
-    }
+    if (n == 0) throw std::invalid_argument("workers");
 
     impl_ = new Impl{};
-    impl_->workers.reserve(worker_count);
-
-    for (std::size_t i = 0; i < worker_count; ++i)
+    for (size_t i = 0; i < n; ++i)
     {
         impl_->workers.emplace_back([this] {
             while (true)
             {
-                std::unique_ptr<Impl::Fiber> fiber;
+                std::unique_ptr<Impl::Fiber> f;
 
                 {
-                    std::unique_lock<std::mutex> lock(impl_->mutex);
-                    impl_->cv.wait(lock, [this] {
-                        return impl_->stopping || !impl_->runnable.empty();
+                    std::unique_lock lock(impl_->m);
+                    impl_->cv.wait(lock, [this]{
+                        return impl_->stop || !impl_->runnable.empty();
                     });
 
-                    if (impl_->stopping && impl_->runnable.empty())
-                    {
-                        return;
-                    }
+                    if (impl_->stop && impl_->runnable.empty()) return;
 
-                    fiber = std::move(impl_->runnable.front());
+                    f = std::move(impl_->runnable.front());
                     impl_->runnable.pop_front();
-                    fiber->state = Impl::FiberState::Running;
                 }
 
-                t_current_impl = impl_;
-                t_current_fiber = fiber.get();
+                t_impl = impl_;
+                t_fiber = f.get();
 
                 try
                 {
-                    fiber->fn();
-                    fiber->state = Impl::FiberState::Completed;
+                    if (f->resumable)
+                    {
+                        if (f->step() == FiberStepResult::Yield)
+                        {
+                            std::lock_guard lock(impl_->m);
+                            impl_->suspended.push_back(std::move(f));
+                        }
+                    }
+                    else
+                    {
+                        f->one_shot();
+                    }
                 }
-                catch (const YieldException&)
+                catch (YieldException&)
                 {
-                    fiber->state = Impl::FiberState::Suspended;
-
-                    std::lock_guard<std::mutex> lock(impl_->mutex);
-                    impl_->suspended.push_back(std::move(fiber));
+                    std::lock_guard lock(impl_->m);
+                    impl_->suspended.push_back(std::move(f));
                 }
 
-                t_current_fiber = nullptr;
-                t_current_impl = nullptr;
+                t_impl = nullptr;
+                t_fiber = nullptr;
             }
         });
     }
@@ -108,53 +88,47 @@ FiberJobSystem::FiberJobSystem(std::size_t worker_count)
 FiberJobSystem::~FiberJobSystem()
 {
     {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        impl_->stopping = true;
+        std::lock_guard lock(impl_->m);
+        impl_->stop = true;
     }
-
     impl_->cv.notify_all();
-
-    for (std::thread& worker : impl_->workers)
-    {
-        if (worker.joinable())
-        {
-            worker.join();
-        }
-    }
-
+    for (auto& w : impl_->workers) w.join();
     delete impl_;
 }
 
 void FiberJobSystem::submit(std::function<void()> job)
 {
-    if (!job)
-    {
-        throw std::invalid_argument("submit() requires a valid callable");
-    }
+    if (!job) throw std::invalid_argument("job");
+
+    auto f = std::make_unique<Impl::Fiber>();
+    f->one_shot = std::move(job);
 
     {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-
-        if (impl_->stopping)
-        {
-            throw std::logic_error("submit() cannot be called after shutdown begins");
-        }
-
-        auto fiber = std::make_unique<Impl::Fiber>();
-        fiber->fn = std::move(job);
-        fiber->state = Impl::FiberState::Runnable;
-        impl_->runnable.push_back(std::move(fiber));
+        std::lock_guard lock(impl_->m);
+        impl_->runnable.push_back(std::move(f));
     }
+    impl_->cv.notify_one();
+}
 
+void FiberJobSystem::submit_resumable(std::function<FiberStepResult()> step)
+{
+    if (!step) throw std::invalid_argument("step");
+
+    auto f = std::make_unique<Impl::Fiber>();
+    f->step = std::move(step);
+    f->resumable = true;
+
+    {
+        std::lock_guard lock(impl_->m);
+        impl_->runnable.push_back(std::move(f));
+    }
     impl_->cv.notify_one();
 }
 
 void FiberJobSystem::yield_current()
 {
-    if (t_current_impl != static_cast<void*>(impl_) || t_current_fiber == nullptr)
-    {
-        throw std::logic_error("yield_current() must be called from a running fiber owned by this scheduler");
-    }
+    if (t_impl != impl_ || t_fiber == nullptr)
+        throw std::logic_error("yield outside");
 
     throw YieldException{};
 }
@@ -162,21 +136,10 @@ void FiberJobSystem::yield_current()
 void FiberJobSystem::resume_all()
 {
     {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-
-        if (impl_->stopping)
-        {
-            throw std::logic_error("resume_all() cannot be called after shutdown begins");
-        }
-
-        for (std::unique_ptr<Impl::Fiber>& fiber : impl_->suspended)
-        {
-            fiber->state = Impl::FiberState::Runnable;
-            impl_->runnable.push_back(std::move(fiber));
-        }
-
+        std::lock_guard lock(impl_->m);
+        for (auto& f : impl_->suspended)
+            impl_->runnable.push_back(std::move(f));
         impl_->suspended.clear();
     }
-
     impl_->cv.notify_all();
 }

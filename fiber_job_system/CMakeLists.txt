@@ -82,3 +82,18 @@ if(BUILD_TESTING)
     include(GoogleTest)
     gtest_discover_tests(fiber_job_system_tests)
 endif()
+
+# -----------------------------
+# Benchmark
+# -----------------------------
+add_executable(fiber_job_system_bench
+    bench/bench.cpp
+)
+
+target_link_libraries(fiber_job_system_bench
+    PRIVATE fiber_job_system
+)
+
+target_include_directories(fiber_job_system_bench
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
+)

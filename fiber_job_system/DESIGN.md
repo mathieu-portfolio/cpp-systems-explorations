@@ -14,38 +14,43 @@ The fiber job system is a cooperative scheduling layer built on top of the exist
 - Job system → dependency-aware scheduler
 - Fiber job system → cooperative suspension / resumption layer
 
-The fiber job system should convert waiting from a thread stall into schedulable work.
+## Current Implementation Strategy
 
-## First Implementation Strategy
+The current version is still model-first, but now moves resumable state ownership into dedicated task objects.
 
-The current version is **model-first**, not context-switch-first.
+That means:
 
-It intentionally simulates yield / resume semantics before introducing:
+- resume state belongs to the fiber task
+- scheduler owns the fiber and its task lifetime
+- lambda-based resumable submission is now only a convenience adapter
 
-- custom stacks
-- platform switching APIs
-- saved execution context
-
-That keeps the scheduler model small and debuggable.
+This is one step closer to real fibers, where execution state belongs to the resumable unit itself.
 
 ## Core Model
 
-- A fiber is a scheduler-owned resumable unit.
-- Fibers are stored in runnable or suspended collections.
+- A fiber is a scheduler-owned execution unit.
+- A resumable fiber owns a `FiberTask`.
+- The task object stores logical progress across resumes.
 - Worker threads execute runnable fibers but do not own them.
-- A running fiber may yield cooperatively.
-- Yielding returns control to the scheduler immediately.
 - Suspended fibers may later be moved back to runnable work.
 - Completion is distinct from yielding.
 
-## Fiber States
+## Fiber Kinds
 
-The minimal state model currently used is:
+### One-shot fibers
 
-- `Runnable`
-- `Running`
-- `Suspended`
-- `Completed`
+- hold `std::function<void()>`
+- execute once
+- may still suspend via `yield_current()`
+- restart from the beginning if resumed after `yield_current()`
+
+### Task-based resumable fibers
+
+- hold `std::unique_ptr<FiberTask>`
+- call `FiberTask::run()` each time they are scheduled
+- preserve logical progress inside task fields
+- return `Yield` to suspend
+- return `Complete` to finish
 
 ## State Invariants
 
@@ -54,49 +59,16 @@ The minimal state model currently used is:
 - Yielding does not block the worker thread.
 - Completed fibers do not become runnable again.
 - Suspended fibers remain scheduler-owned.
-- Destroying the scheduler must not leak runnable or suspended fibers.
-
-## Current Yield Model
-
-`yield_current()` works by throwing an internal scheduler exception from the currently running fiber.
-
-This is a simulation tool, not the final mechanism.
-
-Effects:
-
-- current execution stops immediately
-- worker thread returns to the scheduler loop
-- fiber transitions to `Suspended`
-- resumed fibers are later re-enqueued by `resume_all()`
-
-## Important Limitation
-
-The current version does **not** preserve stack or instruction position.
-
-That means:
-
-- resumed fibers are re-run from the beginning
-- this validates scheduler state transitions
-- this does not yet validate real continuation behavior
-
-## Ownership Model
-
-The scheduler owns all fiber objects and their lifetime.
-
-Implications:
-
-- submission creates scheduler-owned work
-- workers borrow execution of fibers
-- yielded fibers remain stored by the scheduler
-- resumption re-enqueues scheduler-owned fibers into runnable work
+- A `FiberTask` is owned by exactly one fiber.
 
 ## Execution Model
 
-### `submit()`
+### `submit_task()`
 
-- reject empty jobs
+- reject null tasks
 - create a new runnable fiber
-- enqueue it in runnable work
+- transfer ownership of the task into the fiber
+- enqueue runnable work
 - wake a worker
 
 ### worker loop
@@ -104,7 +76,7 @@ Implications:
 - wait for runnable work
 - move one fiber into execution
 - mark it `Running`
-- execute its callable
+- execute one-shot or task-based behavior
 - on normal completion → mark `Completed`
 - on yield → mark `Suspended` and store it
 
@@ -114,16 +86,19 @@ Implications:
 - mark them `Runnable`
 - wake workers
 
-## Open Design Questions
+## Important Limitation
 
-- What platform mechanism should the first real fiber version use for context switching?
-- Should real resumption be implemented with custom stacks or a platform fiber API?
-- How should waiting on job completion interact with suspension later?
-- What stack allocation strategy should real fibers eventually use?
+The current version still does not preserve native stack or instruction position.
+
+That means:
+
+- `FiberTask` preserves logical state, not CPU execution context
+- one-shot jobs that yield still restart from the beginning
+- true continuation semantics still require real context switching later
 
 ## End Goals
 
 - Provide a minimal cooperative scheduling layer on top of the current stack.
 - Make suspension and resumption explicit and explainable.
-- Demonstrate how waiting can be converted from thread blocking into schedulable work.
+- Move toward true per-fiber execution ownership before real context switching.
 - Preserve clarity over advanced runtime features.

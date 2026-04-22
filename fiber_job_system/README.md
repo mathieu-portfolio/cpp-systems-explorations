@@ -2,20 +2,21 @@
 
 A minimal cooperative scheduling layer intended to sit above the `job_system` project.
 
-**Status:** simulated scheduler with runnable/suspended states implemented, real context switching not implemented
+**Status:** simulated scheduler with `FiberTask` state ownership implemented, real context switching not implemented
 
 ## What is a fiber job system?
 
 A fiber job system allows execution to yield and later resume without blocking an OS worker thread.
 
-The current version simulates that model:
+The current version models that behavior with scheduler-owned tasks:
 
 - submitted work becomes scheduler-owned runnable fibers
-- a running fiber may call `yield_current()`
-- yielding suspends the current fiber
-- `resume_all()` moves suspended fibers back to runnable work
+- one-shot jobs can still be submitted with `submit()`
+- resumable work can be submitted as a `FiberTask`
+- the task object owns its logical progress
+- suspended fibers are later moved back to runnable work with `resume_all()`
 
-This version does not yet preserve stack context. Resumed work is re-executed from the start.
+This version does not yet preserve native stack context, but logical resume state now belongs to the fiber task itself rather than external captured variables.
 
 ## Purpose
 
@@ -25,56 +26,34 @@ It is intended to answer:
 
 - how runnable and suspended work are represented
 - how yielding changes scheduler state
-- how worker threads remain free to run other work
+- how fiber-owned state differs from captured-lambda state
 
 ## Current Model
 
-The first implementation is intentionally simulated:
+The current implementation supports three submission forms:
 
-- fibers have explicit scheduler-managed states
-- worker threads execute runnable fibers
-- yielding suspends the current fiber by throwing an internal scheduler exception
-- suspended fibers may later be re-enqueued with `resume_all()`
-- completion is distinct from yielding
+- one-shot jobs:
+  - submitted with `submit()`
+  - run once to completion
 
-## Intended Scope
+- lambda-based resumable jobs:
+  - submitted with `submit_resumable()`
+  - adapted internally into a `FiberTask`
 
-### In scope
-
-- minimal fiber abstraction
-- cooperative suspension and resumption
-- explicit runnable / suspended / completed states
-- small, explainable scheduler behavior
-
-### Out of scope for the current step
-
-- real stack preservation
-- platform-specific context switching
-- async language integration
-- preemptive scheduling
-- advanced continuation chaining
+- task-based resumable jobs:
+  - submitted with `submit_task()`
+  - store logical progress directly inside the task object
 
 ## Planned Public Model
 
 The current API surface is:
 
-- `submit()` to create schedulable work
-- `yield_current()` to cooperatively suspend the current fiber
+- `submit()` to create one-shot schedulable work
+- `submit_resumable()` as a convenience wrapper for step-based resumable work
+- `submit_task()` to submit a stateful `FiberTask`
+- `yield_current()` to cooperatively suspend the current one-shot fiber
 - `resume_all()` to move suspended fibers back to runnable work
-
-## Project Structure
-
-- `fiber_job_system` — library implementation
-- `demo` — simple example
-- `tests` — validation of scheduler contracts and state semantics
-
-## Build
-
-```bash
-cmake -S . -B build
-cmake --build build
-```
 
 ## Notes
 
-This is a learning-focused implementation. The goal is to validate scheduler ownership and yield semantics before introducing real fiber context switching.
+This is a learning-focused implementation. The goal is to validate scheduler ownership and task-owned resume semantics before introducing real fiber context switching.

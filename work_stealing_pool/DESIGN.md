@@ -10,10 +10,10 @@ The work-stealing pool is an execution engine. It should compete conceptually wi
 
 ## Core Model
 
-- Each worker owns a local queue.
+- Each worker owns a local deque.
 - External submissions are distributed across worker queues in round-robin order.
 - Workers consume local work preferentially.
-- Idle workers do not steal yet in this version.
+- Idle workers attempt to steal from other workers.
 - The pool owns worker threads and joins them during shutdown.
 
 ## Current Internal Model
@@ -29,7 +29,9 @@ The work-stealing pool is an execution engine. It should compete conceptually wi
 - A submitted job is executed at most once.
 - A submitted non-empty job is eventually either executed or rejected.
 - No new jobs are accepted after shutdown begins.
-- A worker only pops from its own local queue in this version.
+- Local pop and remote steal do not both claim the same job.
+- Owner pops from the front of its deque.
+- Thieves steal from the back of victim deques.
 - Destructor waits for already-accepted jobs to finish before joining workers.
 - Throwing jobs do not terminate worker threads.
 
@@ -40,23 +42,30 @@ The work-stealing pool is an execution engine. It should compete conceptually wi
 - reject empty jobs
 - reject submission after shutdown begins
 - choose a target worker using round-robin selection
-- push the job into that worker's local queue
+- push the job into that worker's local deque
 - notify sleeping workers
 
 ### worker loop
 
-- try to pop from the worker's own local queue
-- if local work exists, execute it
+- try to pop from the worker's own local deque
+- if empty, scan other workers and try to steal from the back of a victim deque
+- if work exists, execute it
 - otherwise wait for wakeup
-- on shutdown, drain any remaining local work before exiting
+- on shutdown, continue draining until no local or stealable work remains
+
+## Current Stealing Policy
+
+- victim selection uses a simple linear scan
+- there is no randomization or affinity
+- local execution and remote stealing use opposite deque ends
 
 ## Not Implemented Yet
 
-- cross-worker stealing
-- victim selection policy
-- deque end asymmetry for local pop vs remote steal
+- victim randomization
 - worker-local submission routing
 - lock-free or low-lock deques
+- heuristics for locality or fairness
+- benchmark subproject
 
 ## End Goals
 

@@ -28,6 +28,45 @@ struct WorkStealingPool::Impl
     bool stopping = false;
     std::size_t next_worker = 0;
 
+    bool try_pop_local(std::size_t worker_index, std::function<void()>& job)
+    {
+        auto& state = *worker_states[worker_index];
+        std::lock_guard<std::mutex> lock(state.mutex);
+
+        if (state.jobs.empty())
+        {
+            return false;
+        }
+
+        job = std::move(state.jobs.front());
+        state.jobs.pop_front();
+        return true;
+    }
+
+    bool try_steal(std::size_t thief_index, std::function<void()>& job)
+    {
+        const std::size_t worker_count = worker_states.size();
+
+        for (std::size_t offset = 1; offset < worker_count; ++offset)
+        {
+            const std::size_t victim_index = (thief_index + offset) % worker_count;
+            auto& victim = *worker_states[victim_index];
+
+            std::lock_guard<std::mutex> lock(victim.mutex);
+
+            if (victim.jobs.empty())
+            {
+                continue;
+            }
+
+            job = std::move(victim.jobs.back());
+            victim.jobs.pop_back();
+            return true;
+        }
+
+        return false;
+    }
+
     bool has_any_work() const
     {
         for (const auto& state_ptr : worker_states)
@@ -39,6 +78,7 @@ struct WorkStealingPool::Impl
                 return true;
             }
         }
+
         return false;
     }
 };
@@ -66,44 +106,43 @@ WorkStealingPool::WorkStealingPool(std::size_t worker_count)
             {
                 std::function<void()> job;
 
-                // 1. Try local queue first
+                if (impl_->try_pop_local(worker_index, job) || impl_->try_steal(worker_index, job))
                 {
-                    auto& state = *impl_->worker_states[worker_index];
-                    std::lock_guard<std::mutex> lock(state.mutex);
-
-                    if (!state.jobs.empty())
+                    try
                     {
-                        job = std::move(state.jobs.front());
-                        state.jobs.pop_front();
+                        job();
                     }
-                }
+                    catch (...)
+                    {
+                        // Keep the worker alive and treat the job as finished.
+                    }
 
-                if (job)
-                {
-                    try { job(); }
-                    catch (...) { /* swallow */ }
                     continue;
                 }
 
-                // 2. Sleep until shutdown or work appears somewhere
                 std::unique_lock<std::mutex> wake_lock(impl_->wake_mutex);
                 impl_->wake_cv.wait(wake_lock, [this] {
                     return impl_->stopping || impl_->has_any_work();
                 });
 
-                // 3. Shutdown logic
                 if (impl_->stopping)
                 {
-                    bool has_local_work = false;
-                    {
-                        auto& state = *impl_->worker_states[worker_index];
-                        std::lock_guard<std::mutex> lock(state.mutex);
-                        has_local_work = !state.jobs.empty();
-                    }
-
-                    if (!has_local_work)
+                    std::function<void()> remaining_job;
+                    if (!impl_->try_pop_local(worker_index, remaining_job) &&
+                        !impl_->try_steal(worker_index, remaining_job))
                     {
                         return;
+                    }
+
+                    wake_lock.unlock();
+
+                    try
+                    {
+                        remaining_job();
+                    }
+                    catch (...)
+                    {
+                        // Keep shutdown draining semantics simple and robust.
                     }
                 }
             }

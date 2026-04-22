@@ -94,3 +94,85 @@ TEST(FiberJobSystemScheduling, OtherWorkRunsWhileFiberIsSuspended)
 
     EXPECT_EQ(counter, 1);
 }
+
+TEST(FiberJobSystemScheduling, FiberCanYieldAndResumeMultipleTimes)
+{
+    std::vector<std::string> events;
+    std::mutex mutex;
+
+    {
+        FiberJobSystem scheduler(1);
+
+        scheduler.submit([&] {
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                events.push_back("A1");
+            }
+
+            scheduler.yield_current();
+
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                events.push_back("A2");
+            }
+
+            scheduler.yield_current();
+
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                events.push_back("A3");
+            }
+        });
+
+        scheduler.submit([&] {
+            std::lock_guard<std::mutex> lock(mutex);
+            events.push_back("B1");
+        });
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            ASSERT_EQ(events.size(), 2u);
+            EXPECT_EQ(events[0], "A1");
+            EXPECT_EQ(events[1], "B1");
+        }
+
+        scheduler.resume_all();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            ASSERT_EQ(events.size(), 3u);
+            EXPECT_EQ(events[0], "A1");
+            EXPECT_EQ(events[1], "B1");
+            EXPECT_EQ(events[2], "A2");
+        }
+
+        scheduler.submit([&] {
+            std::lock_guard<std::mutex> lock(mutex);
+            events.push_back("B2");
+        });
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            ASSERT_EQ(events.size(), 4u);
+            EXPECT_EQ(events[0], "A1");
+            EXPECT_EQ(events[1], "B1");
+            EXPECT_EQ(events[2], "A2");
+            EXPECT_EQ(events[3], "B2");
+        }
+
+        scheduler.resume_all();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    ASSERT_EQ(events.size(), 5u);
+    EXPECT_EQ(events[0], "A1");
+    EXPECT_EQ(events[1], "B1");
+    EXPECT_EQ(events[2], "A2");
+    EXPECT_EQ(events[3], "B2");
+    EXPECT_EQ(events[4], "A3");
+}

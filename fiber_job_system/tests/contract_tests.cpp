@@ -15,3 +15,9 @@ TEST(FiberJobSystemContract, RejectsEmptySubmission)
     FiberJobSystem scheduler(2);
     EXPECT_THROW(scheduler.submit(std::function<void()>{}), std::invalid_argument);
 }
+
+TEST(FiberJobSystemContract, RejectsYieldOutsideRunningFiber)
+{
+    FiberJobSystem scheduler(2);
+    EXPECT_THROW(scheduler.yield_current(), std::logic_error);
+}

@@ -15,9 +15,8 @@ public:
     FiberJobSystem& operator=(FiberJobSystem&&) = delete;
 
     void submit(std::function<void()> job);
-
-    // Planned cooperative scheduling API for the first real implementation step.
     void yield_current();
+    void resume_all();
 
 private:
     struct Impl;

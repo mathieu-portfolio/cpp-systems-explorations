@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <deque>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -33,12 +34,21 @@ struct FiberJobSystem::Impl
     {
         std::function<void()> fn;
         ctx::continuation cont;
+        ctx::continuation* scheduler_sink = nullptr;
         FiberState state = FiberState::Runnable;
+        bool started = false;
+        std::size_t owner_worker = std::numeric_limits<std::size_t>::max();
+    };
+
+    struct WorkerQueues
+    {
+        std::deque<std::unique_ptr<Fiber>> resumed;
+        std::vector<std::unique_ptr<Fiber>> suspended;
     };
 
     std::vector<std::thread> workers;
-    std::deque<std::unique_ptr<Fiber>> runnable;
-    std::vector<std::unique_ptr<Fiber>> suspended;
+    std::vector<std::unique_ptr<WorkerQueues>> worker_queues;
+    std::deque<std::unique_ptr<Fiber>> pending;
 
     std::mutex mutex;
     std::condition_variable cv;
@@ -54,46 +64,100 @@ FiberJobSystem::FiberJobSystem(std::size_t worker_count)
 
     impl_ = new Impl{};
     impl_->workers.reserve(worker_count);
+    impl_->worker_queues.reserve(worker_count);
 
     for (std::size_t i = 0; i < worker_count; ++i)
     {
-        impl_->workers.emplace_back([this] {
+        impl_->worker_queues.push_back(std::make_unique<Impl::WorkerQueues>());
+    }
+
+    for (std::size_t worker_index = 0; worker_index < worker_count; ++worker_index)
+    {
+        impl_->workers.emplace_back([this, worker_index] {
             while (true)
             {
                 std::unique_ptr<Impl::Fiber> fiber;
 
                 {
                     std::unique_lock<std::mutex> lock(impl_->mutex);
-                    impl_->cv.wait(lock, [this] {
-                        return impl_->stopping || !impl_->runnable.empty();
+                    impl_->cv.wait(lock, [this, worker_index] {
+                        return impl_->stopping ||
+                               !impl_->worker_queues[worker_index]->resumed.empty() ||
+                               !impl_->pending.empty();
                     });
 
-                    if (impl_->stopping && impl_->runnable.empty())
+                    auto& queues = *impl_->worker_queues[worker_index];
+
+                    if (!queues.resumed.empty())
+                    {
+                        fiber = std::move(queues.resumed.front());
+                        queues.resumed.pop_front();
+                    }
+                    else if (!impl_->pending.empty())
+                    {
+                        fiber = std::move(impl_->pending.front());
+                        impl_->pending.pop_front();
+                    }
+                    else if (impl_->stopping)
                     {
                         return;
                     }
+                    else
+                    {
+                        continue;
+                    }
 
-                    fiber = std::move(impl_->runnable.front());
-                    impl_->runnable.pop_front();
                     fiber->state = Impl::FiberState::Running;
+                }
+
+                if (!fiber->started)
+                {
+                    fiber->owner_worker = worker_index;
+
+                    Impl::Fiber* raw_fiber = fiber.get();
+                    Impl* raw_impl = impl_;
+
+                    fiber->cont = ctx::callcc([raw_fiber, raw_impl](ctx::continuation&& sink) mutable {
+                        raw_fiber->scheduler_sink = &sink;
+
+                        // Hand control back immediately so the fiber body starts on first worker resume.
+                        sink = std::move(sink).resume();
+
+                        t_current_impl = raw_impl;
+                        t_current_fiber = raw_fiber;
+                        t_scheduler_sink = raw_fiber->scheduler_sink;
+
+                        raw_fiber->fn();
+                        raw_fiber->state = Impl::FiberState::Completed;
+
+                        t_scheduler_sink = nullptr;
+                        t_current_fiber = nullptr;
+                        t_current_impl = nullptr;
+
+                        return std::move(sink);
+                    });
+
+                    fiber->started = true;
                 }
 
                 t_current_impl = impl_;
                 t_current_fiber = fiber.get();
+                t_scheduler_sink = fiber->scheduler_sink;
 
                 fiber->cont = std::move(fiber->cont).resume();
 
+                t_scheduler_sink = nullptr;
                 t_current_fiber = nullptr;
                 t_current_impl = nullptr;
 
                 if (fiber->state == Impl::FiberState::Suspended)
                 {
                     std::lock_guard<std::mutex> lock(impl_->mutex);
-                    impl_->suspended.push_back(std::move(fiber));
+                    impl_->worker_queues[worker_index]->suspended.push_back(std::move(fiber));
                 }
                 else if (fiber->state == Impl::FiberState::Completed)
                 {
-                    // Fiber context is released automatically when continuation is destroyed.
+                    // Continuation storage is released when the fiber is destroyed.
                 }
                 else
                 {
@@ -135,27 +199,6 @@ void FiberJobSystem::submit(std::function<void()> job)
     fiber->fn = std::move(job);
     fiber->state = Impl::FiberState::Runnable;
 
-    Impl::Fiber* raw_fiber = fiber.get();
-    Impl* raw_impl = impl_;
-
-    fiber->cont = ctx::callcc([raw_fiber, raw_impl](ctx::continuation&& sink) mutable {
-        // Initial handoff back to the creator thread so the fiber starts later on a worker.
-        sink = std::move(sink).resume();
-
-        t_current_impl = raw_impl;
-        t_current_fiber = raw_fiber;
-        t_scheduler_sink = &sink;
-
-        raw_fiber->fn();
-        raw_fiber->state = Impl::FiberState::Completed;
-
-        t_scheduler_sink = nullptr;
-        t_current_fiber = nullptr;
-        t_current_impl = nullptr;
-
-        return std::move(sink);
-    });
-
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);
 
@@ -164,7 +207,7 @@ void FiberJobSystem::submit(std::function<void()> job)
             throw std::logic_error("submit() cannot be called after shutdown begins");
         }
 
-        impl_->runnable.push_back(std::move(fiber));
+        impl_->pending.push_back(std::move(fiber));
     }
 
     impl_->cv.notify_one();
@@ -195,13 +238,18 @@ void FiberJobSystem::resume_all()
             throw std::logic_error("resume_all() cannot be called after shutdown begins");
         }
 
-        for (std::unique_ptr<Impl::Fiber>& fiber : impl_->suspended)
+        for (std::size_t worker_index = 0; worker_index < impl_->worker_queues.size(); ++worker_index)
         {
-            fiber->state = Impl::FiberState::Runnable;
-            impl_->runnable.push_back(std::move(fiber));
-        }
+            auto& queues = *impl_->worker_queues[worker_index];
 
-        impl_->suspended.clear();
+            for (std::unique_ptr<Impl::Fiber>& fiber : queues.suspended)
+            {
+                fiber->state = Impl::FiberState::Runnable;
+                queues.resumed.push_back(std::move(fiber));
+            }
+
+            queues.suspended.clear();
+        }
     }
 
     impl_->cv.notify_all();

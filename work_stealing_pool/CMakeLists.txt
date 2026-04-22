@@ -7,6 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # -----------------------------
+# JobSystem dependency
+# -----------------------------
+add_subdirectory(../job_system job_system_build)
+
+# -----------------------------
 # Library
 # -----------------------------
 add_library(work_stealing_pool
@@ -65,3 +70,20 @@ if(BUILD_TESTING)
     include(GoogleTest)
     gtest_discover_tests(work_stealing_pool_tests)
 endif()
+
+# -----------------------------
+# Benchmark
+# -----------------------------
+add_executable(work_stealing_pool_bench
+    bench/bench.cpp
+)
+
+target_link_libraries(work_stealing_pool_bench
+    PRIVATE
+        work_stealing_pool
+        thread_pool
+)
+
+target_include_directories(work_stealing_pool_bench
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
+)

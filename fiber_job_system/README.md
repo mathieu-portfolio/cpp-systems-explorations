@@ -6,89 +6,53 @@ A minimal cooperative scheduling layer intended to sit above the `job_system` pr
 
 ## What is a fiber job system?
 
-A fiber job system allows execution to **yield and later resume at the same instruction point** without blocking an OS worker thread.
+A fiber job system lets a task pause itself and continue later from the exact same point, without blocking the thread running it.
 
-The current version uses `boost::context::continuation`:
+Think of it like a bookmark:
 
-- submitted work becomes scheduler-owned fibers
-- worker threads lazily start fibers on first execution
-- `yield_current()` returns control to the worker scheduler continuation
-- `resume_all()` moves suspended fibers back to runnable work
-- resumed fibers continue from the same point where they yielded
+- A thread is the reader  
+- A fiber is the task  
+- yield places a bookmark  
+- resume continues from that bookmark  
+
+When a fiber pauses, the thread is free to run something else.
+
+### How it works
+
+1. Submit fibers A and B  
+2. Worker runs A  
+   A does some work  
+   A pauses (yield)  
+3. Worker runs B while A is paused  
+4. Scheduler resumes paused fibers  
+5. A continues exactly where it paused  
+
+### Visual timeline
+
+Worker:   run A --- yield --- run B --- resume A  
+Fiber A:  start --- work --- pause --- continue --- finish  
+
+### In this project
+
+- Submitted work becomes fibers  
+- A worker executes one fiber at a time  
+- yield_current() pauses the current fiber  
+- resume_all() makes paused fibers runnable again  
+- Resumed fibers continue exactly where they paused  
+
+### Key idea
+
+A fiber is not restarted.  
+It continues from the exact point where it yielded.
 
 ## Purpose
 
 This project explores cooperative scheduling on top of the existing execution stack.
 
-It is intended to answer:
-
-- how execution can suspend without blocking worker threads
-- how scheduler-owned fibers are resumed later
-- how portable stackful context switching differs from platform-specific fiber APIs
-
-## Current Model
-
-The current implementation supports:
-
-- `submit()` for one-shot fiber work
-- `yield_current()` for cooperative suspension
-- `resume_all()` to re-enqueue suspended fibers
-
-Unlike the previous simulated model, resumed fibers continue from the exact yield point.
-
-## Execution Notes
-
-This implementation creates the fiber continuation lazily on the worker thread that first executes it.
-
-Once a fiber yields, it is resumed on that same worker. This preserves the continuation ownership model used by `boost::context` and keeps the current scheduler design simple and correct.
-
-This means the current implementation favors correctness and clarity over free migration of yielded fibers between workers.
-
-## Build
-
-This project uses **vcpkg** to manage dependencies.
-
-### Requirements
-
-- CMake 3.21+
-- C++17 compiler
-- vcpkg
-- `VCPKG_ROOT` environment variable set
-
-### Setup
-
-Install dependencies:
-
-```bash
-vcpkg install
-```
-
-### Build
-
-Debug:
-
-```bash
-cmake --preset default
-cmake --build --preset default
-```
-
-Release:
-
-```bash
-cmake --preset release
-cmake --build --preset release
-```
-
-### Run tests
-
-```bash
-ctest --preset default --output-on-failure
-```
-
 ## Notes
 
-- Uses **Boost.Context** for portable stackful context switching.
-- Not tied to Windows fibers.
+- Uses Boost.Context for portable stackful context switching.
 - Yielded fibers currently keep worker affinity after first execution.
 - Still intentionally minimal.
-- Waiting on other jobs/events is not integrated yet.
+- Manual suspension and resumption are supported via yield_current() and resume_all().
+- Structured waiting on other jobs, counters, or events is not integrated yet.

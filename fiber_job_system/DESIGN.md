@@ -21,6 +21,7 @@ The current version uses **portable stackful continuations** via `boost::context
 That means:
 
 - submitted jobs are wrapped as scheduler-owned continuation-backed fibers
+- fibers are started lazily on the worker that first executes them
 - worker threads resume runnable fibers
 - `yield_current()` switches back to the worker scheduler continuation
 - resumed work continues from the exact instruction point where it yielded
@@ -57,37 +58,56 @@ The minimal state model currently used is:
 ### `submit()`
 
 - reject empty jobs
-- create a continuation-backed fiber for the submitted callable
-- enqueue runnable work
+- create scheduler-owned fiber state for the submitted callable
+- enqueue pending work
 - wake a worker
 
 ### worker loop
 
-- wait for runnable work
+- wait for resumed local work or global pending work
 - move one fiber into execution
+- if the fiber has not started yet:
+  - lazily create its continuation on the current worker
+  - record that worker as the fiber owner
 - mark it `Running`
 - resume the fiber continuation
 - when control returns:
-  - if `Suspended` → store it
+  - if `Suspended` → store it in the owning worker's suspended set
   - if `Completed` → destroy it
 
 ### `yield_current()`
 
 - verify that the caller is the current running fiber
 - mark the fiber `Suspended`
-- resume the scheduler continuation
+- resume the owning worker scheduler continuation
 
 ### `resume_all()`
 
 - move all suspended fibers back to runnable work
 - mark them `Runnable`
+- requeue them onto their owning worker
 - wake workers
+
+## Worker Affinity
+
+A yielded fiber is currently affined to the worker that first started it.
+
+This is an intentional design constraint of the current implementation, not an accident. The continuation captured by `boost::context` is tied to the worker scheduler context that created and resumed it.
+
+As a result:
+
+- first execution determines fiber ownership
+- suspended fibers are resumed on their owner worker
+- free migration of yielded fibers between workers is not supported
+
+This keeps the implementation simple and correct for the current project scope.
 
 ## Important Limitations
 
 - Suspended fibers are resumed manually with `resume_all()`.
 - Integration with job waiting / continuation semantics is not implemented yet.
 - Backend portability currently depends on `boost::context` availability.
+- Yielded fibers do not currently migrate between workers.
 
 ## End Goals
 
